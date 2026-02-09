@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <DATAPACKET Version="2.0">
+<METADATA>
+<FIELDS>
+<FIELD attrname="Modificado" fieldtype="dateTime"/>
+<FIELD attrname="Version" fieldtype="string.uni" WIDTH="10"/>
+<FIELD attrname="Revision" fieldtype="string.uni" WIDTH="10"/>
+<FIELD attrname="Parche" fieldtype="string.uni" WIDTH="10"/>
+<FIELD attrname="Orden" fieldtype="i4"/>
+<FIELD attrname="Identificador" fieldtype="i4"/>
+<FIELD attrname="Descripcion" fieldtype="string.uni" WIDTH="300"/>
+<FIELD attrname="Sentencia" fieldtype="bin.hex" SUBTYPE="WideText"/>
+</FIELDS>
+<PARAMS DEFAULT_ORDER="2 3 4 5"/>
+</METADATA>
+<ROWDATA>
+</ROWDATA>
+</DATAPACKET>

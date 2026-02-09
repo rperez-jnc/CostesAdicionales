@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <DATAPACKET Version="2.0">
+<METADATA>
+<FIELDS>
+<FIELD attrname="Tabla" fieldtype="string.uni" WIDTH="200"/>
+<FIELD attrname="Columna" fieldtype="string.uni" WIDTH="200"/>
+<FIELD attrname="Tipo" fieldtype="string.uni" WIDTH="32"/>
+<FIELD attrname="Longitud" fieldtype="i4"/>
+<FIELD attrname="Escala" fieldtype="i4"/>
+<FIELD attrname="PermiteNulos" fieldtype="boolean"/>
+<FIELD attrname="DBDefault" fieldtype="string.uni" WIDTH="200"/>
+<FIELD attrname="Cuadrado" fieldtype="boolean"/>
+<FIELD attrname="Descripcion" fieldtype="string.uni" WIDTH="300"/>
+<FIELD attrname="ValoresPosibles" fieldtype="string.uni" WIDTH="200"/>
+<FIELD attrname="Defecto" fieldtype="string.uni" WIDTH="60"/>
+<FIELD attrname="Version" fieldtype="string.uni" WIDTH="10"/>
+<FIELD attrname="Revision" fieldtype="string.uni" WIDTH="10"/>
+<FIELD attrname="Parche" fieldtype="string.uni" WIDTH="10"/>
+<FIELD attrname="EsDescripcion" fieldtype="boolean"/>
+<FIELD attrname="Calculado" fieldtype="string.uni" WIDTH="2"/>
+<FIELD attrname="EnMantenimiento" fieldtype="string.uni" WIDTH="2"/>
+<FIELD attrname="Dependencia" fieldtype="string.uni" WIDTH="60"/>
+<FIELD attrname="Editor" fieldtype="i4"/>
+<FIELD attrname="OrdenCol" fieldtype="i4"/>
+<FIELD attrname="Identidad" fieldtype="boolean"/>
+<FIELD attrname="DescripcionCorta" fieldtype="string.uni" WIDTH="30"/>
+<FIELD attrname="Propiedad" fieldtype="string.uni" WIDTH="100"/>
+<FIELD attrname="Modificado" fieldtype="dateTime"/>
+<FIELD attrname="ModificadoLogico" fieldtype="dateTime"/>
+</FIELDS>
+<PARAMS DEFAULT_ORDER="1 2"/>
+</METADATA>
+<ROWDATA>
+<ROW Tabla="CABEALBV" Columna="IDALBV" Tipo="money" Longitud="8" Escala="0" PermiteNulos="FALSE" Cuadrado="FALSE" Descripcion="Identificador albar&#225;n de vetna" ValoresPosibles="" Defecto="" Version="1" Revision="0" Parche="" EsDescripcion="FALSE" Calculado="T" EnMantenimiento="F" Dependencia="" Editor="0" OrdenCol="0" Identidad="FALSE" DescripcionCorta="Identificador a" Propiedad="IDLABV" Modificado="20260202T14:34:53000" ModificadoLogico="20260202T14:34:53000"/>
+<ROW Tabla="SOL_COSTESADICIONALES" Columna="SOL_CONCEPTO" Tipo="varchar" Longitud="100" Escala="0" PermiteNulos="TRUE" Cuadrado="FALSE" Descripcion="Concepto del coste" ValoresPosibles="" Defecto="" Version="1" Revision="0" Parche="" EsDescripcion="FALSE" Calculado="F" EnMantenimiento="T" Dependencia="" Editor="1" OrdenCol="0" Identidad="FALSE" DescripcionCorta="Concepto del co" Propiedad="SQL_CONCEPTO" Modificado="20260202T13:38:20000" ModificadoLogico="20260202T13:38:20000"/>
+<ROW Tabla="SOL_COSTESADICIONALES" Columna="SOL_COSTE" Tipo="money" Longitud="8" Escala="0" PermiteNulos="TRUE" Cuadrado="FALSE" Descripcion="Importe del coste" ValoresPosibles="" Defecto="" Version="1" Revision="0" Parche="" EsDescripcion="FALSE" Calculado="F" EnMantenimiento="T" Dependencia="" Editor="1" OrdenCol="0" Identidad="FALSE" DescripcionCorta="Importe del cos" Propiedad="SQL_COSTE" Modificado="20260202T13:38:24000" ModificadoLogico="20260202T13:38:24000"/>
+<ROW Tabla="SOL_COSTESADICIONALES" Columna="SOL_ID" Tipo="int" Longitud="4" Escala="0" PermiteNulos="FALSE" Cuadrado="FALSE" Descripcion="identificador" ValoresPosibles="" Defecto="" Version="1" Revision="0" Parche="" EsDescripcion="FALSE" Calculado="F" EnMantenimiento="F" Dependencia="" Editor="0" OrdenCol="0" Identidad="TRUE" DescripcionCorta="identificador" Propiedad="SQL_ID" Modificado="20260202T14:35:47000" ModificadoLogico="20260202T14:35:47000"/>
+<ROW Tabla="SOL_COSTESADICIONALES" Columna="SOL_IDALBV" Tipo="money" Longitud="8" Escala="0" PermiteNulos="TRUE" Cuadrado="FALSE" Descripcion="Identiicador albaran de venta" ValoresPosibles="" Defecto="" Version="1" Revision="0" Parche="" EsDescripcion="FALSE" Calculado="F" EnMantenimiento="S" Dependencia="" Editor="1" OrdenCol="0" Identidad="FALSE" DescripcionCorta="Identiicador al" Propiedad="SQL_IDLABV" Modificado="20260202T13:38:32000" ModificadoLogico="20260202T14:33:38000"/>
+</ROWDATA>
+</DATAPACKET>

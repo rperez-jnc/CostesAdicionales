@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <DATAPACKET Version="2.0">
+<METADATA>
+<FIELDS>
+<FIELD attrname="Modificado" fieldtype="dateTime"/>
+<FIELD attrname="NombreConstraint" fieldtype="string.uni" WIDTH="300"/>
+<FIELD attrname="Sentencia" fieldtype="bin.hex" SUBTYPE="WideText"/>
+</FIELDS>
+<PARAMS DEFAULT_ORDER="2"/>
+</METADATA>
+<ROWDATA>
+</ROWDATA>
+</DATAPACKET>

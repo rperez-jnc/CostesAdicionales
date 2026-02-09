@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <DATAPACKET Version="2.0">
+<METADATA>
+<FIELDS>
+<FIELD attrname="TablaPadre" fieldtype="string.uni" WIDTH="200"/>
+<FIELD attrname="TablaHija" fieldtype="string.uni" WIDTH="200"/>
+<FIELD attrname="CamposPadre" fieldtype="string.uni" WIDTH="500"/>
+<FIELD attrname="CamposHija" fieldtype="string.uni" WIDTH="500"/>
+<FIELD attrname="FiltroPadre" fieldtype="string.uni" WIDTH="500"/>
+<FIELD attrname="FiltroHija" fieldtype="string.uni" WIDTH="500"/>
+</FIELDS>
+<PARAMS DEFAULT_ORDER="1 2 3 4"/>
+</METADATA>
+<ROWDATA>
+</ROWDATA>
+</DATAPACKET>

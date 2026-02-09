@@ -1,0 +1,2 @@
+inherited dmdDatos: TdmdDatos
+end

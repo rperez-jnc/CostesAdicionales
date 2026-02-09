@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <DATAPACKET Version="2.0">
+<METADATA>
+<FIELDS>
+<FIELD attrname="Nombre" fieldtype="string.uni" WIDTH="60"/>
+<FIELD attrname="Opcional" fieldtype="boolean"/>
+<FIELD attrname="VersionMinima" fieldtype="string.uni" WIDTH="10"/>
+<FIELD attrname="RevisionMinima" fieldtype="string.uni" WIDTH="10"/>
+<FIELD attrname="ParcheMinimo" fieldtype="string.uni" WIDTH="10"/>
+<FIELD attrname="VersionMaxima" fieldtype="string.uni" WIDTH="10"/>
+<FIELD attrname="RevisionMaxima" fieldtype="string.uni" WIDTH="10"/>
+<FIELD attrname="ParcheMaximo" fieldtype="string.uni" WIDTH="10"/>
+</FIELDS>
+<PARAMS DEFAULT_ORDER="1"/>
+</METADATA>
+<ROWDATA>
+</ROWDATA>
+</DATAPACKET>

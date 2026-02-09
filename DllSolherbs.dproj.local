@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>2024/06/05 11:14:54.000.461,=C:\Users\usuario\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>2024/12/18 12:38:53.000.550,=C:\Users\usuario\Documents\Embarcadero\Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>2026/02/02 12:58:03.744,E:\Repositorios\Solherbs\CostesAdicionales\DllSolherbs.dproj=C:\Users\usuario\Documents\Embarcadero\Studio\Projects\Project1.dproj</Transaction>
+    <Transaction>2026/02/02 12:58:16.605,=E:\Repositorios\Solherbs\CostesAdicionales\Unit1.pas</Transaction>
+    <Transaction>2026/02/02 12:58:39.491,E:\Repositorios\Solherbs\CostesAdicionales\Dll_Solherbs.pas=E:\Repositorios\Solherbs\CostesAdicionales\Unit1.pas</Transaction>
+    <Transaction>2026/02/02 12:59:07.066,=E:\Repositorios\comun\dlls\DLL_dmEstandar.pas</Transaction>
+    <Transaction>2026/02/02 12:59:22.991,=E:\Repositorios\Solherbs\CostesAdicionales\Unit1.pas</Transaction>
+    <Transaction>2026/02/02 12:59:47.787,E:\Repositorios\Solherbs\CostesAdicionales\Datos\DmDatos.dfm=E:\Repositorios\Solherbs\CostesAdicionales\Unit1.dfm</Transaction>
+    <Transaction>2026/02/02 12:59:47.787,E:\Repositorios\Solherbs\CostesAdicionales\Datos\DmDatos.pas=E:\Repositorios\Solherbs\CostesAdicionales\Unit1.pas</Transaction>
+  </Transactions>
+</BorlandProject>

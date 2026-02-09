@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <DATAPACKET Version="2.0">
+<METADATA>
+<FIELDS>
+<FIELD attrname="Tabla" fieldtype="string.uni" WIDTH="200"/>
+<FIELD attrname="Descripcion" fieldtype="string.uni" WIDTH="300"/>
+<FIELD attrname="Virtual" fieldtype="boolean"/>
+<FIELD attrname="Interna" fieldtype="boolean"/>
+<FIELD attrname="Maestro" fieldtype="boolean"/>
+<FIELD attrname="Obsoleta" fieldtype="boolean"/>
+<FIELD attrname="Auxiliar" fieldtype="boolean"/>
+<FIELD attrname="Externo" fieldtype="boolean"/>
+<FIELD attrname="Orden" fieldtype="i4"/>
+<FIELD attrname="Jerarquia" fieldtype="boolean"/>
+<FIELD attrname="Tipo" fieldtype="string.uni" WIDTH="2"/>
+<FIELD attrname="Estado" fieldtype="string.uni" WIDTH="2"/>
+<FIELD attrname="Modificado" fieldtype="dateTime"/>
+<FIELD attrname="ModificadoLogico" fieldtype="dateTime"/>
+<FIELD attrname="Compartido" fieldtype="i4"/>
+</FIELDS>
+<PARAMS DEFAULT_ORDER="1"/>
+</METADATA>
+<ROWDATA>
+<ROW Tabla="CABEALBV" Descripcion="Cabeceras de albaranes de venta" Virtual="FALSE" Interna="FALSE" Maestro="FALSE" Auxiliar="FALSE" Externo="TRUE" Jerarquia="FALSE" Tipo="G" Estado="G" Modificado="20260202T14:34:53000" ModificadoLogico="20260202T14:34:53000" Compartido="1"/>
+<ROW Tabla="SOL_COSTESADICIONALES" Descripcion="Costes adicionales del albar&#225;n" Virtual="FALSE" Interna="FALSE" Maestro="FALSE" Auxiliar="TRUE" Externo="TRUE" Jerarquia="FALSE" Tipo="A" Estado="G" Modificado="20260202T14:35:58000" ModificadoLogico="20260202T14:35:58000" Compartido="1"/>
+</ROWDATA>
+</DATAPACKET>

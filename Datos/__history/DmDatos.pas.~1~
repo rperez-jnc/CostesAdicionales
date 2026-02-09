@@ -1,0 +1,25 @@
+unit DmDatos;
+
+interface
+
+uses
+  System.SysUtils, System.Classes, DLL_dmEstandar, Data.DB, Data.Win.ADODB;
+
+type
+  TdmdDatos = class(TdmDLL)
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+  end;
+
+var
+  dmdDatos: TdmdDatos;
+
+implementation
+
+{%CLASSGROUP 'Vcl.Controls.TControl'}
+
+{$R *.dfm}
+
+end.

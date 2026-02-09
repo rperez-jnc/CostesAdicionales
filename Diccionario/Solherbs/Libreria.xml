@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <DATAPACKET Version="2.0">
+<METADATA>
+<FIELDS>
+<FIELD attrname="Nombre" fieldtype="string.uni" WIDTH="60"/>
+<FIELD attrname="Version" fieldtype="string.uni" WIDTH="10"/>
+<FIELD attrname="Revision" fieldtype="string.uni" WIDTH="10"/>
+<FIELD attrname="Parche" fieldtype="string.uni" WIDTH="10"/>
+<FIELD attrname="MinVersionAct" fieldtype="string.uni" WIDTH="10"/>
+<FIELD attrname="MinRevisionAct" fieldtype="string.uni" WIDTH="10"/>
+<FIELD attrname="MinParcheAct" fieldtype="string.uni" WIDTH="10"/>
+<FIELD attrname="MinIdentificadorAct" fieldtype="i4"/>
+<FIELD attrname="Autor" fieldtype="string.uni" WIDTH="160"/>
+<FIELD attrname="Direccion" fieldtype="string.uni" WIDTH="160"/>
+<FIELD attrname="Telefono" fieldtype="string.uni" WIDTH="80"/>
+<FIELD attrname="web" fieldtype="string.uni" WIDTH="160"/>
+<FIELD attrname="email" fieldtype="string.uni" WIDTH="160"/>
+<FIELD attrname="Identificador" fieldtype="i4"/>
+<FIELD attrname="VersionDiccionario" fieldtype="i4"/>
+<FIELD attrname="IdentObjetos" fieldtype="i4"/>
+<FIELD attrname="Comentarios" fieldtype="bin.hex" SUBTYPE="WideText"/>
+</FIELDS>
+<PARAMS/>
+</METADATA>
+<ROWDATA>
+<ROW Nombre="Solherbs" Version="1" Revision="0" Parche="" Autor="Wolters Kluwer" Direccion="Av. Carrilet, 3 (9&#170; Planta) - Edificio D" Telefono="902-115-893" web="https://a3.wolterskluwer.es/" email="" Identificador="8" VersionDiccionario="140407" Comentarios="https://a3responde.wolterskluwer.es/"/>
+</ROWDATA>
+</DATAPACKET>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  <DATAPACKET Version="2.0">
+<METADATA>
+<FIELDS>
+<FIELD attrname="Tabla" fieldtype="string.uni" WIDTH="200"/>
+<FIELD attrname="Indice" fieldtype="string.uni" WIDTH="500"/>
+<FIELD attrname="Columnas" fieldtype="string.uni" WIDTH="400"/>
+<FIELD attrname="Clave" fieldtype="boolean"/>
+<FIELD attrname="Unico" fieldtype="boolean"/>
+<FIELD attrname="Agrupado" fieldtype="boolean"/>
+</FIELDS>
+<PARAMS DEFAULT_ORDER="1 2"/>
+</METADATA>
+<ROWDATA>
+<ROW Tabla="SOL_COSTESADICIONALES" Indice="PK_SOL_COSTESADICIONALES" Columnas="SOL_ID" Clave="TRUE" Unico="FALSE" Agrupado="TRUE"/>
+</ROWDATA>
+</DATAPACKET>

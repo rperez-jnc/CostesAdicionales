@@ -1,0 +1,109 @@
+unit DmDatos;
+
+interface
+
+uses
+  a3ERPActiveX_TLB, System.SysUtils, System.Classes, DLL_dmEstandar, Data.DB, Data.Win.ADODB, JncLib, Dll_Modelo;
+
+type
+  TdmdDatos = class(TdmDLL)
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+    function SumaCostesAdiciones(vIdAlbv:double):double;
+    function SumaUnidadesLineas(vIdAlbv:double):double;
+    procedure ActualizaCosteLineas(vIdAlbv,vCosteUnidad:double );
+   end;
+
+var
+  dmdDatos: TdmdDatos;
+
+implementation
+
+{%CLASSGROUP 'Vcl.Controls.TControl'}
+
+{$R *.dfm}
+
+{ TdmdDatos }
+
+procedure TdmdDatos.ActualizaCosteLineas(vIdAlbv, vCosteUnidad: double);
+var
+  NaxAlbaran : albaran;
+  lUnidades : double;
+  lCoste : double;
+  lObtPrcCoste : string;
+begin
+
+  NaxAlbaran := coAlbaran.Create;
+  NaxAlbaran.Iniciar;
+  NaxAlbaran.Modifica(vIdAlbv, False);
+
+  with query do
+  begin
+    close;
+    sql.Clear;
+
+    sql.Add('Select numlin, unidades, coste from linealba with(nolock)');
+    sql.Add('where idalbv = ' + formateafloatsql(vIdAlbv));
+
+    open;
+
+    first;
+
+    while not eof do
+    begin
+      lCoste := NaxAlbaran.AsFloatCab['PrcMedio'];
+      lUnidades :=NaxAlbaran.AsFloatCab['Unidades'];
+      lObtPrcCoste :=NaxAlbaran.AsStringCab['ObtPrcCoste'];
+
+      if uppercase(lObtPrcCoste) <> 'MANU' then
+      begin
+         NaxAlbaran.AsFloatCab['PrcMedio'] := lCoste + (lUnidades * vCosteUnidad);
+
+      end;
+
+      next;
+    end;
+
+  end;
+  aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam('AV')] := 'T';
+  NaxAlbaran.Anade;
+  NaxAlbaran.Acabar;
+end;
+
+function TdmdDatos.SumaCostesAdiciones(vIdAlbv: double): double;
+begin
+  with query do
+  begin
+    close;
+    sql.Clear;
+
+    sql.Add('Select sum(coalesce(sol_coste,0)) coste from sol_costesadicionales with(nolock)');
+    sql.Add('where col_idalbv = ' + formateafloatsql(vIdAlbv));
+
+    open;
+
+    result := fieldbyname('coste').AsFloat;
+
+  end;
+end;
+
+function TdmdDatos.SumaUnidadesLineas(vIdAlbv: double): double;
+begin
+    with query do
+  begin
+    close;
+    sql.Clear;
+
+    sql.Add('Select sum(coalesce(unidades,0)) unidades from linealba with(nolock)');
+    sql.Add('where idalbv = ' + formateafloatsql(vIdAlbv));
+
+    open;
+
+    result := fieldbyname('unidades').AsFloat;
+
+  end;
+end;
+
+end.
