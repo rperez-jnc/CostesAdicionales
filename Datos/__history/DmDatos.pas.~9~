@@ -3,7 +3,7 @@ unit DmDatos;
 interface
 
 uses
-  a3ERPActiveX_TLB, System.SysUtils, System.Classes, DLL_dmEstandar, Data.DB, Data.Win.ADODB, JncLib;
+  a3ERPActiveX_TLB, System.SysUtils, System.Classes, DLL_dmEstandar, Data.DB, Data.Win.ADODB, JncLib, Dll_Modelo;
 
 type
   TdmdDatos = class(TdmDLL)
@@ -33,6 +33,7 @@ var
   lUnidades : double;
   lCoste : double;
   lObtPrcCoste : string;
+  lNUmLin : double;
 begin
 
   NaxAlbaran := coAlbaran.Create;
@@ -44,7 +45,7 @@ begin
     close;
     sql.Clear;
 
-    sql.Add('Select numlin, unidades, coste from linealba with(nolock)');
+    sql.Add('Select numlinalb, unidades, prcmedio,ObtPrcCoste from linealba with(nolock)');
     sql.Add('where idalbv = ' + formateafloatsql(vIdAlbv));
 
     open;
@@ -53,20 +54,28 @@ begin
 
     while not eof do
     begin
-      lCoste := NaxAlbaran.AsFloatCab['PrcMedio'];
-      lUnidades :=NaxAlbaran.AsFloatCab['Unidades'];
-      lObtPrcCoste :=NaxAlbaran.AsFloatCab['ObtPrcCoste'];
 
+      lNumlin :=fieldbyname('numlinalb').AsFloat;
+
+      NaxAlbaran.EditarLinea(lNumLin);
+      lCoste := NaxAlbaran.AsFloatLin['PrcMedio'];
+      lUnidades :=NaxAlbaran.AsFloatLin['Unidades'];
+      lObtPrcCoste :=NaxAlbaran.AsStringLin['ObtPrcCoste'];
       if uppercase(lObtPrcCoste) <> 'MANU' then
       begin
-         NaxAlbaran.AsFloatCab['PrcMedio'] := lCoste + (lUnidades * vCosteUnidad);
+         NaxAlbaran.AsFloatLin['PrcMedio'] := lCoste + (lUnidades * vCosteUnidad);
+
 
       end;
+      NaxAlbaran.AnadirLinea;
 
       next;
     end;
 
   end;
+  aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam('AV')] := 'T';
+  NaxAlbaran.Anade;
+  NaxAlbaran.Acabar;
 end;
 
 function TdmdDatos.SumaCostesAdiciones(vIdAlbv: double): double;
@@ -77,7 +86,7 @@ begin
     sql.Clear;
 
     sql.Add('Select sum(coalesce(sol_coste,0)) coste from sol_costesadicionales with(nolock)');
-    sql.Add('where col_idlabv = ' + formateafloatsql(vIdAlbv));
+    sql.Add('where sol_idalbv = ' + formateafloatsql(vIdAlbv));
 
     open;
 

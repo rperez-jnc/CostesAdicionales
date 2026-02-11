@@ -30,16 +30,12 @@ implementation
 procedure TdmdDatos.ActualizaCosteLineas(vIdAlbv, vCosteUnidad: double);
 var
   NaxAlbaran : albaran;
-  NaxVarios : Varios;
   lUnidades : double;
   lCoste : double;
   lObtPrcCoste : string;
   lNUmLin : double;
-  lCodArt, lCodAlm : string;
-  lPrcCoste : double;
 begin
 
-  Naxvarios := coVarios.Create;
   NaxAlbaran := coAlbaran.Create;
   NaxAlbaran.Iniciar;
   NaxAlbaran.Modifica(vIdAlbv, False);
@@ -49,7 +45,7 @@ begin
     close;
     sql.Clear;
 
-    sql.Add('Select codart, codalm, numlinalb, unidades, prcmedio,ObtPrcCoste from linealba with(nolock)');
+    sql.Add('Select numlinalb, unidades, prcmedio,ObtPrcCoste from linealba with(nolock)');
     sql.Add('where idalbv = ' + formateafloatsql(vIdAlbv));
 
     open;
@@ -62,19 +58,15 @@ begin
       lNumlin :=fieldbyname('numlinalb').AsFloat;
 
       NaxAlbaran.EditarLinea(lNumLin);
-      //lCoste := NaxAlbaran.AsFloatLin['PrcMedio'];
+      lCoste := NaxAlbaran.AsFloatLin['PrcMedio'];
       lUnidades :=NaxAlbaran.AsFloatLin['Unidades'];
       lObtPrcCoste :=NaxAlbaran.AsStringLin['ObtPrcCoste'];
-      lCodAlm := Fieldbyname('CodAlm').AsString;
-      lCodArt := Fieldbyname('CodArt').AsString;
-      if uppercase(lObtPrcCoste) <> 'MANU' then
-      begin
-         lPrcCoste := NaxVarios.ObtPrecioMedio(lCodArt,lCodAlm);
-         lPrcCoste := NaxVarios.ObtPrecioCoste(lCodArt,lCodAlm,lObtPrcCoste);
-         NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste + (lUnidades * vCosteUnidad);
+      //if uppercase(lObtPrcCoste) <> 'MANU' then
+      //begin
+         NaxAlbaran.AsFloatLin['PrcMedio'] := lCoste + (lUnidades * vCosteUnidad);
 
 
-      end;
+      //end;
       NaxAlbaran.AnadirLinea;
 
       next;

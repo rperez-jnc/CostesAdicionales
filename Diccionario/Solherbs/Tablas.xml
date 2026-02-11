@@ -22,6 +22,6 @@
 </METADATA>
 <ROWDATA>
 <ROW Tabla="CABEALBV" Descripcion="Cabeceras de albaranes de venta" Virtual="FALSE" Interna="FALSE" Maestro="FALSE" Auxiliar="FALSE" Externo="TRUE" Jerarquia="FALSE" Tipo="G" Estado="G" Modificado="20260202T14:34:53000" ModificadoLogico="20260202T14:34:53000" Compartido="1"/>
-<ROW Tabla="SOL_COSTESADICIONALES" Descripcion="Costes adicionales del albar&#225;n" Virtual="FALSE" Interna="FALSE" Maestro="FALSE" Auxiliar="TRUE" Externo="TRUE" Jerarquia="FALSE" Tipo="A" Estado="G" Modificado="20260202T14:35:58000" ModificadoLogico="20260202T14:35:58000" Compartido="1"/>
+<ROW Tabla="SOL_COSTESADICIONALES" Descripcion="Costes adicionales del albar&#225;n" Virtual="FALSE" Interna="FALSE" Maestro="FALSE" Auxiliar="TRUE" Externo="TRUE" Jerarquia="FALSE" Tipo="A" Estado="G" Modificado="20260211T08:53:49000" ModificadoLogico="20260211T08:54:23000" Compartido="1"/>
 </ROWDATA>
 </DATAPACKET>

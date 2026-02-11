@@ -1,3 +1,2 @@
 inherited dmdDatos: TdmdDatos
-  OldCreateOrder = True
 end
