@@ -71,9 +71,7 @@ begin
                  lCosteUnidad := lImporteCosteAdicionales /  lNumUnidades;
                  bd.ActualizaCosteLineas(IdDoc,lCosteUnidad );
                end;
-           end
-           else  //Si no hay lineas de coste, pongo los costes que devuelve Nax
-             bd.ActualizaCosteLineas(IdDoc,0 );
+           end;
 
         end;
     END;
