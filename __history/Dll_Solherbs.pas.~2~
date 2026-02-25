@@ -9,8 +9,6 @@ procedure INICIAR(Empresa: PAnsiChar); stdcall;
 procedure FINALIZAR; stdcall;
 procedure DESPUESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; Estado: integer); stdcall;
 function REPINTAR(Tabla: AnsiString): boolean; stdcall;
-function ANTESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; var Cabecera: variant; var Lineas: variant;
-  Estado: integer): boolean; stdcall;
 
 var
   Bd:TdmdDatos;
@@ -38,15 +36,7 @@ function REPINTAR(Tabla: AnsiString): boolean; stdcall;
 begin
   result := True;
 end;
-function ANTESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; var Cabecera: variant; var Lineas: variant;
-  Estado: integer): boolean; stdcall;
-begin
-   result := true;
-   if ((Documento = 'AV') and (Estado = 2)) then
-   begin
-      bd.EliminaCostesAdicionalesAlbaran(idDoc);
-   end;
-end;
+
 procedure DESPUESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; Estado: integer); stdcall;
 var
   lImporteCosteAdicionales: double;

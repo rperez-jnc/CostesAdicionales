@@ -41,7 +41,6 @@ end;
 function ANTESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; var Cabecera: variant; var Lineas: variant;
   Estado: integer): boolean; stdcall;
 begin
-   result := true;
    if ((Documento = 'AV') and (Estado = 2)) then
    begin
       bd.EliminaCostesAdicionalesAlbaran(idDoc);

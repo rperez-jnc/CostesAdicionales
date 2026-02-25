@@ -14,6 +14,7 @@ type
     function SumaCostesAdiciones(vIdAlbv:double):double;
     function SumaUnidadesLineas(vIdAlbv:double):double;
     procedure ActualizaCosteLineas(vIdAlbv,vCosteUnidad:double );
+    procedure EliminaCostesAdicionalesAlbaran(vIdALbv:double);
    end;
 
 var
@@ -86,6 +87,19 @@ begin
   NaxAlbaran.Acabar;
 end;
 
+procedure TdmdDatos.EliminaCostesAdicionalesAlbaran(vIdALbv: double);
+begin
+   with query do
+  begin
+    close;
+    sql.Clear;
+
+    sql.Add('Delete sol_costesadicionales where sol_idalbv = ' + formateafloatsql(vIdAlbv));
+
+    execsql;
+  end;
+end;
+
 function TdmdDatos.SumaCostesAdiciones(vIdAlbv: double): double;
 begin
   with query do
@@ -113,6 +127,7 @@ begin
 
     sql.Add('Select sum(coalesce(unidades,0)) unidades from linealba with(nolock)');
     sql.Add('where idalbv = ' + formateafloatsql(vIdAlbv));
+    sql.add('and obtprccoste <> ''MANU''');
 
     open;
 
