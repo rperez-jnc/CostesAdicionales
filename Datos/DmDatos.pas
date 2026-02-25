@@ -72,7 +72,7 @@ begin
       begin
          lPrcCoste := NaxVarios.ObtPrecioMedio(lCodArt,lCodAlm);
          lPrcCoste := NaxVarios.ObtPrecioCoste(lCodArt,lCodAlm,lObtPrcCoste);
-         NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste + (lUnidades * vCosteUnidad);
+         NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste +  vCosteUnidad;
 
 
       end;
