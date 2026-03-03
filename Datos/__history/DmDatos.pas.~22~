@@ -12,8 +12,9 @@ type
   public
     { Public declarations }
     function SumaCostesAdiciones(vIdAlbv:double):double;
-    function SumaUnidadesLineas(vIdAlbv:double):double;
-    procedure ActualizaCosteLineas(vIdAlbv,vCosteUnidad:double );
+    function SumaUnidadesLineas(vIdAlbv:double; ModificarCostesManuales:boolean):double;
+    procedure ActualizaCosteLineas(vIdAlbv,vCosteUnidad:double; vModificarCostesManuales:boolean );
+    procedure EliminaCostesAdicionalesAlbaran(vIdALbv:double);
    end;
 
 var
@@ -27,15 +28,19 @@ implementation
 
 { TdmdDatos }
 
-procedure TdmdDatos.ActualizaCosteLineas(vIdAlbv, vCosteUnidad: double);
+procedure TdmdDatos.ActualizaCosteLineas(vIdAlbv, vCosteUnidad: double; vModificarCostesManuales:boolean);
 var
   NaxAlbaran : albaran;
+  NaxVarios : Varios;
   lUnidades : double;
   lCoste : double;
   lObtPrcCoste : string;
   lNUmLin : double;
+  lCodArt, lCodAlm : string;
+  lPrcCoste : double;
 begin
 
+  Naxvarios := coVarios.Create;
   NaxAlbaran := coAlbaran.Create;
   NaxAlbaran.Iniciar;
   NaxAlbaran.Modifica(vIdAlbv, False);
@@ -45,7 +50,7 @@ begin
     close;
     sql.Clear;
 
-    sql.Add('Select numlinalb, unidades, prcmedio,ObtPrcCoste from linealba with(nolock)');
+    sql.Add('Select codart, codalm, numlinalb, unidades, prcmedio,ObtPrcCoste from linealba with(nolock)');
     sql.Add('where idalbv = ' + formateafloatsql(vIdAlbv));
 
     open;
@@ -58,12 +63,19 @@ begin
       lNumlin :=fieldbyname('numlinalb').AsFloat;
 
       NaxAlbaran.EditarLinea(lNumLin);
-      lCoste := NaxAlbaran.AsFloatLin['PrcMedio'];
+      //lCoste := NaxAlbaran.AsFloatLin['PrcMedio'];
       lUnidades :=NaxAlbaran.AsFloatLin['Unidades'];
       lObtPrcCoste :=NaxAlbaran.AsStringLin['ObtPrcCoste'];
-      if uppercase(lObtPrcCoste) <> 'MANU' then
+      lCodAlm := Fieldbyname('CodAlm').AsString;
+      lCodArt := Fieldbyname('CodArt').AsString;
+      if ((uppercase(lObtPrcCoste) <> 'MANU') or (vModificarCostesManuales)) then
       begin
-         NaxAlbaran.AsFloatLin['PrcMedio'] := lCoste + (lUnidades * vCosteUnidad);
+         if uppercase(lObtPrcCoste) <> 'MANU' then
+           lPrcCoste := NaxVarios.ObtPrecioCoste(lCodArt,lCodAlm,lObtPrcCoste)
+         else
+           lPrcCoste := NaxAlbaran.AsFloatLin['SOL_COSTEANTERIOR'];
+         NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste +  vCosteUnidad;
+         NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
 
 
       end;
@@ -78,6 +90,19 @@ begin
   NaxAlbaran.Acabar;
 end;
 
+procedure TdmdDatos.EliminaCostesAdicionalesAlbaran(vIdALbv: double);
+begin
+   with query do
+  begin
+    close;
+    sql.Clear;
+
+    sql.Add('Delete sol_costesadicionales where sol_idalbv = ' + formateafloatsql(vIdAlbv));
+
+    execsql;
+  end;
+end;
+
 function TdmdDatos.SumaCostesAdiciones(vIdAlbv: double): double;
 begin
   with query do
@@ -87,6 +112,7 @@ begin
 
     sql.Add('Select sum(coalesce(sol_coste,0)) coste from sol_costesadicionales with(nolock)');
     sql.Add('where sol_idalbv = ' + formateafloatsql(vIdAlbv));
+    sql.Add('and coalesce(sol_sumar,''F'') = ''T''');
 
     open;
 
@@ -95,7 +121,7 @@ begin
   end;
 end;
 
-function TdmdDatos.SumaUnidadesLineas(vIdAlbv: double): double;
+function TdmdDatos.SumaUnidadesLineas(vIdAlbv: double; ModificarCostesManuales:boolean): double;
 begin
     with query do
   begin
@@ -104,6 +130,8 @@ begin
 
     sql.Add('Select sum(coalesce(unidades,0)) unidades from linealba with(nolock)');
     sql.Add('where idalbv = ' + formateafloatsql(vIdAlbv));
+    if ModificarCostesManuales then
+         sql.add('and obtprccoste <> ''MANU''');
 
     open;
 

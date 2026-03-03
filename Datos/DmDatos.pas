@@ -70,9 +70,12 @@ begin
       lCodArt := Fieldbyname('CodArt').AsString;
       if ((uppercase(lObtPrcCoste) <> 'MANU') or (vModificarCostesManuales)) then
       begin
-         lPrcCoste := NaxVarios.ObtPrecioMedio(lCodArt,lCodAlm);
-         lPrcCoste := NaxVarios.ObtPrecioCoste(lCodArt,lCodAlm,lObtPrcCoste);
+
+         //lPrcCoste := NaxVarios.ObtPrecioMedio(lCodArt,lCodAlm);
+         //lPrcCoste := NaxVarios.ObtPrecioCoste(lCodArt,lCodAlm,lObtPrcCoste);
+         lPrcCoste := NaxAlbaran.AsFloatLin['SOL_COSTEANTERIOR'];
          NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste +  vCosteUnidad;
+         NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
 
 
       end;

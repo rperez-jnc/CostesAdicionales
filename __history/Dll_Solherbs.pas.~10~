@@ -12,14 +12,10 @@ function REPINTAR(Tabla: AnsiString): boolean; stdcall;
 function ANTESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; var Cabecera: variant; var Lineas: variant;
   Estado: integer): boolean; stdcall;
 function ANTESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer; var PermitirGuardar: boolean): variant; stdcall;
-function CAMPOSAESCUCHARENDOCUMENTO(Documento: Ansistring; IdDoc: Double): OleVariant; stdcall;
-function  ANTESDECAMBIODECAMPOENDOCUMENTOV2(Documento: String; IdDoc: Double;  Campo: String; const ValorAnterior, NuevoValor: OleVariant): OleVariant; stdcall;
-
 
 var
   Bd:TdmdDatos;
   DatosIniAplicacion: TDatosIniAplicacion;
-  CambiadoPrcMedio: boolean;
 
 implementation
 
@@ -29,8 +25,7 @@ begin
   Bd := TdmdDatos.Create(nil);
   Bd.Conecta(Empresa);
   DatosIniAplicacion := TDatosIniAplicacion.Create;
-  bd.IniciaEnlace;
-  CambiadoPrcMedio := False;
+   bd.IniciaEnlace;
 
 end;
 
@@ -45,36 +40,17 @@ function REPINTAR(Tabla: AnsiString): boolean; stdcall;
 begin
   result := True;
 end;
-function CAMPOSAESCUCHARENDOCUMENTO(Documento: Ansistring; IdDoc: Double): OleVariant; stdcall;
-begin
-   if Documento = 'AV' then
-  begin
-    result := varArrayCreate([0, 1], varVariant);
-    result[0] := 1;
-    result[1] := 'Linea.PrcMedio';
-  end
-  else
-    result := Null;
-
-end;
-function  ANTESDECAMBIODECAMPOENDOCUMENTOV2(Documento: String; IdDoc: Double;  Campo: String; const ValorAnterior, NuevoValor: OleVariant): OleVariant; stdcall;
-begin
-  if campo = 'Linea.PrcMedio' then
-     CambiadoPrcMedio := true;
-
-
-end;
 function ANTESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer; var PermitirGuardar: boolean): variant; stdcall;
 var
   lPrcCoste : double;
   lCostes : string;
 begin
     PermitirGuardar := true;
-   if  ((Documento = 'AV') and (estado < 2) and (CambiadoPrcMedio)) then
+   if estado < 2 then
    begin
       result := true;
       lPrcCoste := TInternoDLL.GetValorCampoVarFloat(Linea, 'prcmedio');
-     lCostes := ifnull(TInternoDLL.GetValorCampoVarStr(Linea, 'SOL_MODCOSTESADICIONALES'),'F');
+      lCostes := ifnull(TInternoDLL.GetValorCampoVarStr(Linea, 'SOL_MODCOSTESADICIONALES'),'F');
 
       if lCostes = 'T' then //Si la linea la estan modificando los costes, no hay que guardar el coste en el campo auxiliar
       begin
@@ -88,7 +64,7 @@ begin
             result[0] := 1;
             result[1] := VarArrayOf(['SOL_COSTEANTERIOR', lPrcCoste]);
       end;
-      CambiadoPrcMedio := False;
+
    end;
 end;
 function ANTESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; var Cabecera: variant; var Lineas: variant;
