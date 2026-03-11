@@ -3,7 +3,8 @@ unit DmDatos;
 interface
 
 uses
-  a3ERPActiveX_TLB, System.SysUtils, System.Classes, DLL_dmEstandar, Data.DB, Data.Win.ADODB, JncLib, Dll_Modelo;
+  a3ERPActiveX_TLB, System.SysUtils, System.Classes, DLL_dmEstandar, Data.DB,
+  Data.Win.ADODB, JncLib, Dll_Modelo, Dialogs, System.UiTypes;
 
 type
   TdmdDatos = class(TdmDLL)
@@ -68,12 +69,50 @@ begin
       lObtPrcCoste :=NaxAlbaran.AsStringLin['ObtPrcCoste'];
       lCodAlm := Fieldbyname('CodAlm').AsString;
       lCodArt := Fieldbyname('CodArt').AsString;
+     
+
       if ((uppercase(lObtPrcCoste) <> 'MANU') or (vModificarCostesManuales)) then
       begin
-         lPrcCoste := NaxVarios.ObtPrecioMedio(lCodArt,lCodAlm);
-         lPrcCoste := NaxVarios.ObtPrecioCoste(lCodArt,lCodAlm,lObtPrcCoste);
-         NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste +  vCosteUnidad;
-         NaxAlbaran.AsStringLin['SQL_MODCOSTESADICIONALES'] := 'T';
+
+        lPrcCoste := NaxAlbaran.AsFloatLin['SOL_COSTEANTERIOR'];
+        Showmessage('Coste anterior: ' + floattostr(lPrcCoste));
+         //lPrcCoste := NaxVarios.ObtPrecioMedio(lCodArt,lCodAlm);
+         if ((vCosteUnidad = 0) and  (lPrcCoste = 0) and (uppercase(lObtPrcCoste) <> 'MANU')) then
+         begin
+             Showmessage('No hay coste anterior');
+              lPrcCoste := NaxVarios.ObtPrecioCoste(lCodArt,lCodAlm,lObtPrcCoste);
+              Showmessage('Precio coste Nax: ' + floattostr(lPrcCoste));
+               Showmessage('Coste unidad: ' + floattostr(vCosteUnidad));
+              NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste +  vCosteUnidad;
+              NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
+         end
+         else
+         if uppercase(lObtPrcCoste) <> 'MANU' then
+         begin
+             Showmessage('Hay coste anterior');
+
+              Showmessage('Precio coste Nax: ' + floattostr(lPrcCoste));
+               Showmessage('Coste unidad: ' + floattostr(vCosteUnidad));
+              NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste +  vCosteUnidad;
+              NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
+         end
+         else
+         if ((uppercase(lObtPrcCoste) = 'MANU')  and (lPrcCoste <> 0)) then
+         begin
+            Showmessage('Coste Manual y hay coste anterior');
+
+            NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste + vCosteUnidad ;
+            NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
+         end
+         else
+         begin
+            Showmessage('Coste Manual sin coste anterior con coste por linea');
+            lPrcCoste := NaxAlbaran.AsFloatLin['PrcMedio'];
+            Showmessage('Precio coste manual: ' + floattostr(lPrcCoste));
+               Showmessage('Coste unidad: ' + floattostr(vCosteUnidad));
+            NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste + vCosteUnidad ;
+            NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
+         end;
 
 
       end;

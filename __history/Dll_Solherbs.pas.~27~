@@ -52,7 +52,7 @@ begin
     result := varArrayCreate([0, 2], varVariant);
     result[0] := 2;
     result[1] := 'Linea.PrcMedio';
-    result[2] := 'Linea.ObtPrcCoste';
+    result[2] := 'Linea.ObtPrcMedio';
   end
   else
     result := Null;

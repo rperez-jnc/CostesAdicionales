@@ -49,10 +49,9 @@ function CAMPOSAESCUCHARENDOCUMENTO(Documento: Ansistring; IdDoc: Double): OleVa
 begin
    if Documento = 'AV' then
   begin
-    result := varArrayCreate([0, 2], varVariant);
-    result[0] := 2;
+    result := varArrayCreate([0, 1], varVariant);
+    result[0] := 1;
     result[1] := 'Linea.PrcMedio';
-    result[2] := 'Linea.ObtPrcCoste';
   end
   else
     result := Null;
@@ -62,15 +61,7 @@ function  ANTESDECAMBIODECAMPOENDOCUMENTOV2(Documento: String; IdDoc: Double;  C
 begin
   if campo = 'Linea.PrcMedio' then
      CambiadoPrcMedio := true;
-  if campo = 'Linea.ObtPrcCoste' then
-  begin
-     if ((ValorAnterior <> '') and (NuevoValor = 'MANU')) then
-     begin
-         Result := VarArrayOf([1, VarArrayOf(['SOL_COSTEANTERIOR', '0'])]);
 
-     end;
-
-  end;
 
 end;
 function ANTESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer; var PermitirGuardar: boolean): variant; stdcall;
@@ -79,11 +70,11 @@ var
   lCostes : string;
 begin
     PermitirGuardar := true;
-
+    if CambiadoPrcMedio then
 
    if  ((Documento = 'AV') and (estado < 2) and (CambiadoPrcMedio)) then
    begin
-
+      result := true;
       lPrcCoste := TInternoDLL.GetValorCampoVarFloat(Linea, 'prcmedio');
      lCostes := ifnull(TInternoDLL.GetValorCampoVarStr(Linea, 'SOL_MODCOSTESADICIONALES'),'F');
 
@@ -105,13 +96,9 @@ begin
    end;
 end;
 procedure DESPUESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer); stdcall;
-var
-  lPrcMedioAnt: double;
 begin
    if  ((Documento = 'AV') and (estado < 2)) then
    begin
-      lPrcMedioAnt := ifnull(TInternoDLL.GetValorCampoVarFloat(Linea, 'SOL_COSTEANTERIOR'),0);
-
 
    end;
 end;

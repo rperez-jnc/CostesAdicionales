@@ -13,9 +13,13 @@ function ANTESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; var Cab
   Estado: integer): boolean; stdcall;
 function ANTESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer; var PermitirGuardar: boolean): variant; stdcall;
 function CAMPOSAESCUCHARENDOCUMENTO(Documento: Ansistring; IdDoc: Double): OleVariant; stdcall;
+function  ANTESDECAMBIODECAMPOENDOCUMENTOV2(Documento: String; IdDoc: Double;  Campo: String; const ValorAnterior, NuevoValor: OleVariant): OleVariant; stdcall;
+procedure DESPUESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer); stdcall;
+
 var
   Bd:TdmdDatos;
   DatosIniAplicacion: TDatosIniAplicacion;
+  CambiadoPrcMedio: boolean;
 
 implementation
 
@@ -25,7 +29,8 @@ begin
   Bd := TdmdDatos.Create(nil);
   Bd.Conecta(Empresa);
   DatosIniAplicacion := TDatosIniAplicacion.Create;
-   bd.IniciaEnlace;
+  bd.IniciaEnlace;
+  CambiadoPrcMedio := False;
 
 end;
 
@@ -42,6 +47,21 @@ begin
 end;
 function CAMPOSAESCUCHARENDOCUMENTO(Documento: Ansistring; IdDoc: Double): OleVariant; stdcall;
 begin
+   if Documento = 'AV' then
+  begin
+    result := varArrayCreate([0, 1], varVariant);
+    result[0] := 1;
+    result[1] := 'Linea.PrcMedio';
+  end
+  else
+    result := Null;
+
+end;
+function  ANTESDECAMBIODECAMPOENDOCUMENTOV2(Documento: String; IdDoc: Double;  Campo: String; const ValorAnterior, NuevoValor: OleVariant): OleVariant; stdcall;
+begin
+  if campo = 'Linea.PrcMedio' then
+     CambiadoPrcMedio := true;
+
 
 end;
 function ANTESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer; var PermitirGuardar: boolean): variant; stdcall;
@@ -50,7 +70,9 @@ var
   lCostes : string;
 begin
     PermitirGuardar := true;
-   if  ((Documento = 'AV') and (estado < 2)) then
+    if CambiadoPrcMedio then
+
+   if  ((Documento = 'AV') and (estado < 2) and (CambiadoPrcMedio)) then
    begin
       result := true;
       lPrcCoste := TInternoDLL.GetValorCampoVarFloat(Linea, 'prcmedio');
@@ -64,10 +86,31 @@ begin
       end
       else
       begin
+
          result := varArrayCreate([0, 1], varVariant);
             result[0] := 1;
             result[1] := VarArrayOf(['SOL_COSTEANTERIOR', lPrcCoste]);
+
       end;
+      CambiadoPrcMedio := False;
+   end;
+end;
+procedure DESPUESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer); stdcall;
+var
+  DataSet : TDataSetObject;
+begin
+   if  ((Documento = 'AV') and (estado < 2)) then
+   begin
+        Dataset := TDatasetObject.Create(Linea);
+       try
+          showmessage(floattostr(Dataset.Rows[0].FieldByname('SOL_COSTEANTERIOR').Value ));
+
+
+
+       finally
+          Dataset.free;
+
+       end;
 
    end;
 end;
@@ -98,6 +141,7 @@ begin
            lImporteCosteAdicionales := bd.SumaCostesAdiciones(IdDoc);
            if lImporteCosteAdicionales > 0 then
            begin
+
                lNumUnidades:= bd.SumaUnidadesLineas(IdDoc, DatosIniAplicacion.ModificarCostesManuales);
                if lNumUnidades > 0 then
                begin
@@ -106,7 +150,11 @@ begin
                end;
            end
            else  //Si no hay lineas de coste, pongo los costes que devuelve Nax
+           begin
+
+
              bd.ActualizaCosteLineas(IdDoc,0 ,DatosIniAplicacion.ModificarCostesManuales);
+           end;
 
         end;
     END;

@@ -170,7 +170,7 @@ begin
 
     sql.Add('Select sum(coalesce(unidades,0)) unidades from linealba with(nolock)');
     sql.Add('where idalbv = ' + formateafloatsql(vIdAlbv));
-    if not ModificarCostesManuales then
+    if ModificarCostesManuales then
          sql.add('and obtprccoste <> ''MANU''');
 
     open;
