@@ -14,12 +14,13 @@ function ANTESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; var Cab
 function ANTESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer; var PermitirGuardar: boolean): variant; stdcall;
 function CAMPOSAESCUCHARENDOCUMENTO(Documento: Ansistring; IdDoc: Double): OleVariant; stdcall;
 function  ANTESDECAMBIODECAMPOENDOCUMENTOV2(Documento: String; IdDoc: Double;  Campo: String; const ValorAnterior, NuevoValor: OleVariant): OleVariant; stdcall;
-
+procedure DESPUESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer); stdcall;
 
 var
   Bd:TdmdDatos;
   DatosIniAplicacion: TDatosIniAplicacion;
   CambiadoPrcMedio: boolean;
+  NoModificarCostes : boolean;
 
 implementation
 
@@ -31,7 +32,7 @@ begin
   DatosIniAplicacion := TDatosIniAplicacion.Create;
   bd.IniciaEnlace;
   CambiadoPrcMedio := False;
-
+  NoModificarCostes := False;
 end;
 
 procedure FINALIZAR; stdcall;
@@ -49,9 +50,11 @@ function CAMPOSAESCUCHARENDOCUMENTO(Documento: Ansistring; IdDoc: Double): OleVa
 begin
    if Documento = 'AV' then
   begin
-    result := varArrayCreate([0, 1], varVariant);
-    result[0] := 1;
+    result := varArrayCreate([0, 3], varVariant);
+    result[0] := 3;
     result[1] := 'Linea.PrcMedio';
+    result[2] := 'Linea.ObtPrcCoste';
+    result[3] := 'Cabecera.'+ DatosIniAplicacion.paramnomodificarcostes;
   end
   else
     result := Null;
@@ -61,7 +64,21 @@ function  ANTESDECAMBIODECAMPOENDOCUMENTOV2(Documento: String; IdDoc: Double;  C
 begin
   if campo = 'Linea.PrcMedio' then
      CambiadoPrcMedio := true;
+  if ((campo = 'Linea.ObtPrcCoste') and not (NoModificarCostes)) then
+  begin
+     if ((ValorAnterior <> '') and (NuevoValor = 'MANU')) then
+     begin
+         Result := VarArrayOf([1, VarArrayOf(['SOL_COSTEANTERIOR', '0'])]);
 
+     end;
+
+  end;
+  if uppercase(campo) = Uppercase('Cabecera.'+ DatosIniAplicacion.paramnomodificarcostes) then
+  begin
+     if NuevoValor = 'T' then
+        NoModificarCostes := true;
+
+  end;
 
 end;
 function ANTESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer; var PermitirGuardar: boolean): variant; stdcall;
@@ -70,14 +87,16 @@ var
   lCostes : string;
 begin
     PermitirGuardar := true;
-    if CambiadoPrcMedio then
-      showmessage('Cambiado prcmedio');
-   if  ((Documento = 'AV') and (estado < 2) and (CambiadoPrcMedio)) then
+
+
+   if  ((Documento = 'AV') and (estado < 2) and (CambiadoPrcMedio) and not(NoModificarCostes)) then
    begin
-      result := true;
+
       lPrcCoste := TInternoDLL.GetValorCampoVarFloat(Linea, 'prcmedio');
-     lCostes := ifnull(TInternoDLL.GetValorCampoVarStr(Linea, 'SOL_MODCOSTESADICIONALES'),'F');
-      showmessage('Entra');
+      lCostes := ifnull(TInternoDLL.GetValorCampoVarStr(Linea, 'SOL_MODCOSTESADICIONALES'),'F');
+      NoModificarCostes := ifnull(TInternoDLL.GetValorCampoVarStr(Cabecera, DatosIniAplicacion.ParamNoModificarCostes,'F'));
+      if NoModificarCostes then
+         Exit;
       if lCostes = 'T' then //Si la linea la estan modificando los costes, no hay que guardar el coste en el campo auxiliar
       begin
         result := varArrayCreate([0, 1], varVariant);
@@ -86,21 +105,38 @@ begin
       end
       else
       begin
-        showmessage('Cambia coste anterior');
+
          result := varArrayCreate([0, 1], varVariant);
             result[0] := 1;
             result[1] := VarArrayOf(['SOL_COSTEANTERIOR', lPrcCoste]);
-            showmessage(floattostr(lPrcCoste));
+
       end;
       CambiadoPrcMedio := False;
+   end;
+end;
+procedure DESPUESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer); stdcall;
+var
+  lPrcMedioAnt: double;
+begin
+   if  ((Documento = 'AV') and (estado < 2) and not (NoModificarCostes)) then
+   begin
+      NoModificarCostes :=   ifnull(TInternoDLL.GetValorCampoVarFloat(Cabecera, DatosIniAplicacion.ParamNoModificarCostes,'F'));
+      if NoModificarCostes then
+         exit;
+      lPrcMedioAnt := ifnull(TInternoDLL.GetValorCampoVarFloat(Linea, 'SOL_COSTEANTERIOR'),0);
+
+
    end;
 end;
 function ANTESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; var Cabecera: variant; var Lineas: variant;
   Estado: integer): boolean; stdcall;
 begin
    result := true;
-   if ((Documento = 'AV') and (Estado = 2)) then
+   if ((Documento = 'AV') and (Estado = 2) and not (NoModificarCostes)) then
    begin
+      NoModificarCostes :=   ifnull(TInternoDLL.GetValorCampoVarFloat(Cabecera, DatosIniAplicacion.ParamNoModificarCostes,'F'));
+      if NoModificarCostes then
+         exit;
       bd.EliminaCostesAdicionalesAlbaran(idDoc);
    end;
 end;
@@ -117,8 +153,12 @@ begin
     ELSE
     BEGIN
          //ALBARANES
-        if ((Documento = 'AV') and (Estado < 2)) then
+        if ((Documento = 'AV') and (Estado < 2) and not (NoModificarCostes)) then
         begin
+           NoModificarCostes := Bd.BuscarParam(iddoc, DatosIniAplicacion.ParamNoModificarCostes);
+           if NoModificarCostes  then
+             exit;
+
            lImporteCosteAdicionales := bd.SumaCostesAdiciones(IdDoc);
            if lImporteCosteAdicionales > 0 then
            begin

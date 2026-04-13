@@ -20,6 +20,7 @@ var
   Bd:TdmdDatos;
   DatosIniAplicacion: TDatosIniAplicacion;
   CambiadoPrcMedio: boolean;
+  NoModificarCostes : boolean;
 
 implementation
 
@@ -31,7 +32,7 @@ begin
   DatosIniAplicacion := TDatosIniAplicacion.Create;
   bd.IniciaEnlace;
   CambiadoPrcMedio := False;
-
+  NoModificarCostes := False;
 end;
 
 procedure FINALIZAR; stdcall;
@@ -49,10 +50,11 @@ function CAMPOSAESCUCHARENDOCUMENTO(Documento: Ansistring; IdDoc: Double): OleVa
 begin
    if Documento = 'AV' then
   begin
-    result := varArrayCreate([0, 2], varVariant);
-    result[0] := 2;
+    result := varArrayCreate([0, 3], varVariant);
+    result[0] := 3;
     result[1] := 'Linea.PrcMedio';
-    result[2] := 'Linea.ObtPrcMedio';
+    result[2] := 'Linea.ObtPrcCoste';
+    result[3] := 'Cabecera.'+ DatosIniAplicacion.paramnomodificarcostes;
   end
   else
     result := Null;
@@ -71,6 +73,12 @@ begin
      end;
 
   end;
+  if uppercase(campo) = Uppercase('Cabecera.'+ DatosIniAplicacion.paramnomodificarcostes) then
+  begin
+     if NuevoValor = 'T' then
+        NoModificarCostes := true;
+
+  end;
 
 end;
 function ANTESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer; var PermitirGuardar: boolean): variant; stdcall;
@@ -81,7 +89,7 @@ begin
     PermitirGuardar := true;
 
 
-   if  ((Documento = 'AV') and (estado < 2) and (CambiadoPrcMedio)) then
+   if  ((Documento = 'AV') and (estado < 2) and (CambiadoPrcMedio) and not(NoModificarCostes)) then
    begin
 
       lPrcCoste := TInternoDLL.GetValorCampoVarFloat(Linea, 'prcmedio');
@@ -108,7 +116,7 @@ procedure DESPUESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Line
 var
   lPrcMedioAnt: double;
 begin
-   if  ((Documento = 'AV') and (estado < 2)) then
+   if  ((Documento = 'AV') and (estado < 2) and not (NoModificarCostes)) then
    begin
       lPrcMedioAnt := ifnull(TInternoDLL.GetValorCampoVarFloat(Linea, 'SOL_COSTEANTERIOR'),0);
 
@@ -119,7 +127,7 @@ function ANTESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; var Cab
   Estado: integer): boolean; stdcall;
 begin
    result := true;
-   if ((Documento = 'AV') and (Estado = 2)) then
+   if ((Documento = 'AV') and (Estado = 2) and not (NoModificarCostes)) then
    begin
       bd.EliminaCostesAdicionalesAlbaran(idDoc);
    end;
@@ -137,7 +145,7 @@ begin
     ELSE
     BEGIN
          //ALBARANES
-        if ((Documento = 'AV') and (Estado < 2)) then
+        if ((Documento = 'AV') and (Estado < 2) and not (NoModificarCostes)) then
         begin
            lImporteCosteAdicionales := bd.SumaCostesAdiciones(IdDoc);
            if lImporteCosteAdicionales > 0 then

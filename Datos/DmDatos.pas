@@ -16,6 +16,7 @@ type
     function SumaUnidadesLineas(vIdAlbv:double; ModificarCostesManuales:boolean):double;
     procedure ActualizaCosteLineas(vIdAlbv,vCosteUnidad:double; vModificarCostesManuales:boolean );
     procedure EliminaCostesAdicionalesAlbaran(vIdALbv:double);
+    function BuscarParam(vIdalbv:double; vparametro:string):boolean;
    end;
 
 var
@@ -128,6 +129,22 @@ begin
   aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam('AV')] := 'T';
   NaxAlbaran.Anade;
   NaxAlbaran.Acabar;
+end;
+
+function TdmdDatos.BuscarParam(vIdalbv:double; vparametro: string): boolean;
+begin
+  with query do
+  begin
+    close;
+    sql.Clear;
+
+    sql.Add('Select coalesce(' + vparametro + ',''F'') Parametro from cabealbv with(nolock)');
+    sql.Add('where idalbv = ' + formateafloatsql(vIdAlbv));
+
+    open;
+
+    result := FieldByName('parametro').asstring = 'T';
+  end;
 end;
 
 procedure TdmdDatos.EliminaCostesAdicionalesAlbaran(vIdALbv: double);

@@ -9,7 +9,6 @@ type
   TDatosIniAplicacion = class(TDllDatosIni)
   private
     FModificarCostesManuales: boolean;
-    FParamNoModificarCostes: string;
 
 
    public
@@ -17,7 +16,6 @@ type
 
 
     property ModificarCostesManuales : boolean read  FModificarCostesManuales write FModificarCostesManuales;
-    property ParamNoModificarCostes : string read  FParamNoModificarCostes write FParamNoModificarCostes;
 
 
 
@@ -34,7 +32,7 @@ begin
 
 
   ModificarCostesManuales:= FArchivoIni.ReadString('Configuracion', 'ModificarCostesManuales', 'F') = 'T';
-  ParamNoModificarCostes := FArchivoIni.ReadString('Configuracion', 'ParamNoModificarCostes', 'Param1');
+
 
 end;
 

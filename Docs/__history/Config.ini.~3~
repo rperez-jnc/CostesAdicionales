@@ -3,4 +3,4 @@
 ;Tener en cuenta las unidades de la linea y modificar costes si la Obtencion de precio de coste es manual
 ModificarCostesManuales = T
 ;Parametro (T,F) para realizar el recalculo de costes o no
-ParamNoModificarCostes = Param4
+ParamNoModificarCostes = Param
