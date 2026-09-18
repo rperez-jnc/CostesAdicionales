@@ -2,7 +2,7 @@ unit Dll_Solherbs;
 
 interface
 
-Uses dmDatos, Dialogs,RowObject, JncLib, SysUtils,dxCore,dll_modelo, DatosIni, System.Variants;
+Uses dmDatos, Dialogs,RowObject, JncLib, SysUtils,dxCore,dll_modelo, DatosIni, System.Variants, System.DateUtils;
 
 
 procedure INICIAR(Empresa: PAnsiChar); stdcall;
@@ -16,6 +16,7 @@ function CAMPOSAESCUCHARENDOCUMENTO(Documento: Ansistring; IdDoc: Double): OleVa
 function  ANTESDECAMBIODECAMPOENDOCUMENTOV2(Documento: String; IdDoc: Double;  Campo: String; const ValorAnterior, NuevoValor: OleVariant): OleVariant; stdcall;
 procedure DESPUESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer); stdcall;
 
+procedure CalculoLotes(vIdAlbc:double);
 var
   Bd:TdmdDatos;
   DatosIniAplicacion: TDatosIniAplicacion;
@@ -76,7 +77,9 @@ begin
   if uppercase(campo) = Uppercase('Cabecera.'+ DatosIniAplicacion.paramnomodificarcostes) then
   begin
      if NuevoValor = 'T' then
-        NoModificarCostes := true;
+        NoModificarCostes := true
+     else
+        NoModificarCostes := false;
 
   end;
 
@@ -94,7 +97,7 @@ begin
 
       lPrcCoste := TInternoDLL.GetValorCampoVarFloat(Linea, 'prcmedio');
       lCostes := ifnull(TInternoDLL.GetValorCampoVarStr(Linea, 'SOL_MODCOSTESADICIONALES'),'F');
-      NoModificarCostes := ifnull(TInternoDLL.GetValorCampoVarStr(Cabecera, DatosIniAplicacion.ParamNoModificarCostes),'F');
+      NoModificarCostes := ifnull(TInternoDLL.GetValorCampoVarStr(Cabecera, DatosIniAplicacion.ParamNoModificarCostes),'F')= 'T';
       if NoModificarCostes then
          Exit;
       if lCostes = 'T' then //Si la linea la estan modificando los costes, no hay que guardar el coste en el campo auxiliar
@@ -114,13 +117,17 @@ begin
       CambiadoPrcMedio := False;
    end;
 end;
+
+
+
 procedure DESPUESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer); stdcall;
 var
   lPrcMedioAnt: double;
+
 begin
    if  ((Documento = 'AV') and (estado < 2) and not (NoModificarCostes)) then
    begin
-      NoModificarCostes :=   ifnull(TInternoDLL.GetValorCampoVarFloat(Cabecera, DatosIniAplicacion.ParamNoModificarCostes),'F');
+      NoModificarCostes :=   ifnull(TInternoDLL.GetValorCampoVarStr(Cabecera, DatosIniAplicacion.ParamNoModificarCostes),'F')= 'T';
       if NoModificarCostes then
          exit;
       lPrcMedioAnt := ifnull(TInternoDLL.GetValorCampoVarFloat(Linea, 'SOL_COSTEANTERIOR'),0);
@@ -132,11 +139,9 @@ function ANTESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; var Cab
   Estado: integer): boolean; stdcall;
 begin
    result := true;
-   if ((Documento = 'AV') and (Estado = 2) and not (NoModificarCostes)) then
+   if ((Documento = 'AV') and (Estado = 2)) then
    begin
-      NoModificarCostes :=   ifnull(TInternoDLL.GetValorCampoVarFloat(Cabecera, DatosIniAplicacion.ParamNoModificarCostes),'F');
-      if NoModificarCostes then
-         exit;
+
       bd.EliminaCostesAdicionalesAlbaran(idDoc);
    end;
 end;
@@ -178,7 +183,63 @@ begin
            end;
 
         end;
+        if  ((Documento = 'AC') and (estado < 2)) then
+       begin
+            CalculoLotes(IdDoc);
+            
+       end;
     END;
+end;
+procedure CalculoLotes(vIdAlbc:double);
+var
+  lLote : string;
+  lineasModificar: string;
+  function CodigoFechaActual: string;
+  var
+    Fecha: TDateTime;
+    Ejercicio: Integer;
+    Semana: Integer;
+
+    DiaSemana: Integer;
+
+  begin
+    Fecha := Date;
+
+    Ejercicio := YearOf(Fecha) mod 100;
+    Semana := WeekOfTheYear(Fecha);
+    DiaSemana := DayOfTheWeek(Fecha);
+
+    Result := Format('%.2d%.2d%d', [Ejercicio, Semana, DiaSemana]);
+  end;
+begin
+  bd.ObtenerLineasConLote(vIdAlbc);
+  lLote := CodigoFechaActual + bd.ObtenerCodPro(vIdAlbc);
+   // String que utilizaremos para comprobar que líneas tendrán que ser modificadas
+   lineasModificar := '-1';
+  with bd.qLineasLote do
+  begin
+   while not eof do
+   begin
+      // Recorremos todas las líneas que tenemos que actualizar y guardamos su id
+      lineasModificar := lineasModificar + ',' + inttostr(Trunc(fieldbyname('idlin').asfloat));
+      next;
+   end;
+  end;
+  with bd.query do
+  begin
+     Close;
+     sql.Clear;
+
+     // Actualizamos todas las líneas seleccionadas
+
+     sql.Add('Update linealba set lote = :PLOTE');
+     sql.Add(' where idlin in (' + lineasModificar + ')');
+
+     Parameters.ParamByName('PLOTE').Value := lLote;
+
+     ExecSQL;
+  end;
+
 end;
 
 end.

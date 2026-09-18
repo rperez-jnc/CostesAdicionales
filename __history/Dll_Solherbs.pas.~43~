@@ -2,7 +2,7 @@ unit Dll_Solherbs;
 
 interface
 
-Uses dmDatos, Dialogs,RowObject, JncLib, SysUtils,dxCore,dll_modelo, DatosIni, System.Variants;
+Uses dmDatos, Dialogs,RowObject, JncLib, SysUtils,dxCore,dll_modelo, DatosIni, System.Variants, System.DateUtils;
 
 
 procedure INICIAR(Empresa: PAnsiChar); stdcall;
@@ -11,10 +11,12 @@ procedure DESPUESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; Esta
 function REPINTAR(Tabla: AnsiString): boolean; stdcall;
 function ANTESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; var Cabecera: variant; var Lineas: variant;
   Estado: integer): boolean; stdcall;
-function ANTESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer; var PermitirGuardar: boolean): variant; stdcall;
+//function ANTESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer; var PermitirGuardar: boolean): variant; stdcall;
 function CAMPOSAESCUCHARENDOCUMENTO(Documento: Ansistring; IdDoc: Double): OleVariant; stdcall;
 function  ANTESDECAMBIODECAMPOENDOCUMENTOV2(Documento: String; IdDoc: Double;  Campo: String; const ValorAnterior, NuevoValor: OleVariant): OleVariant; stdcall;
 procedure DESPUESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer); stdcall;
+function ANTESDEGUARDARLINEACONDETALLEV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Detalle: variant;
+  Estado: integer; var PermitirGuardar: boolean): variant; stdcall;
 
 var
   Bd:TdmdDatos;
@@ -83,7 +85,7 @@ begin
   end;
 
 end;
-function ANTESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer; var PermitirGuardar: boolean): variant; stdcall;
+{function ANTESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer; var PermitirGuardar: boolean): variant; stdcall;
 var
   lPrcCoste : double;
   lCostes : string;
@@ -115,10 +117,73 @@ begin
       end;
       CambiadoPrcMedio := False;
    end;
+end;  }
+
+function ANTESDEGUARDARLINEACONDETALLEV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Detalle: variant;
+  Estado: integer; var PermitirGuardar: boolean): variant; stdcall;
+var
+  lPrcCoste : double;
+  lCostes : string;
+  lLote: string;
+  function CodigoFechaActual: string;
+  var
+    Fecha: TDateTime;
+    Ejercicio: Integer;
+    Semana: Integer;
+    DiaSemana: Integer;
+  begin
+    Fecha := Date;
+
+    Ejercicio := YearOf(Fecha) mod 100;
+    Semana := WeekOfTheYear(Fecha);
+    DiaSemana := DayOfTheWeek(Fecha);
+
+    Result := Format('%.2d%.2d%.2d', [Ejercicio, Semana, DiaSemana]);
+  end;
+begin
+    PermitirGuardar := true;
+
+
+   if  ((Documento = 'AV') and (estado < 2) and (CambiadoPrcMedio) and not(NoModificarCostes)) then
+   begin
+
+      lPrcCoste := TInternoDLL.GetValorCampoVarFloat(Linea, 'prcmedio');
+      lCostes := ifnull(TInternoDLL.GetValorCampoVarStr(Linea, 'SOL_MODCOSTESADICIONALES'),'F');
+      NoModificarCostes := ifnull(TInternoDLL.GetValorCampoVarStr(Cabecera, DatosIniAplicacion.ParamNoModificarCostes),'F')= 'T';
+      if NoModificarCostes then
+         Exit;
+      if lCostes = 'T' then //Si la linea la estan modificando los costes, no hay que guardar el coste en el campo auxiliar
+      begin
+        result := varArrayCreate([0, 1], varVariant);
+            result[0] := 1;
+            result[1] := VarArrayOf(['SOL_MODCOSTESADICIONALES', 'F']);
+      end
+      else
+      begin
+
+         result := varArrayCreate([0, 1], varVariant);
+            result[0] := 1;
+            result[1] := VarArrayOf(['SOL_COSTEANTERIOR', lPrcCoste]);
+
+      end;
+      CambiadoPrcMedio := False;
+   end;
+
+   if  ((Documento = 'AC') and (estado < 2)) then
+   begin
+        lLote :=  ifnull(TInternoDLL.GetValorCampoDetalleStr(Detalle, 'Lote'),'');
+        if lLote = '' then
+        begin
+           lLote := CodigoFechaActual +  trim(TInternoDLL.GetValorCampoVarStr(Cabecera, 'CodPro'));
+        end;
+   end;
+
 end;
+
 procedure DESPUESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer); stdcall;
 var
   lPrcMedioAnt: double;
+
 begin
    if  ((Documento = 'AV') and (estado < 2) and not (NoModificarCostes)) then
    begin
@@ -134,11 +199,9 @@ function ANTESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; var Cab
   Estado: integer): boolean; stdcall;
 begin
    result := true;
-   if ((Documento = 'AV') and (Estado = 2) and not (NoModificarCostes)) then
+   if ((Documento = 'AV') and (Estado = 2)) then
    begin
-      NoModificarCostes :=   ifnull(TInternoDLL.GetValorCampoVarFloat(Cabecera, DatosIniAplicacion.ParamNoModificarCostes),'F') = 'T';
-      if NoModificarCostes then
-         exit;
+
       bd.EliminaCostesAdicionalesAlbaran(idDoc);
    end;
 end;

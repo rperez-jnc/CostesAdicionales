@@ -2,7 +2,7 @@ unit Dll_Solherbs;
 
 interface
 
-Uses dmDatos, Dialogs,RowObject, JncLib, SysUtils,dxCore,dll_modelo, DatosIni, System.Variants;
+Uses dmDatos, Dialogs,RowObject, JncLib, SysUtils,dxCore,dll_modelo, DatosIni, System.Variants, System.DateUtils;
 
 
 procedure INICIAR(Empresa: PAnsiChar); stdcall;
@@ -16,6 +16,7 @@ function CAMPOSAESCUCHARENDOCUMENTO(Documento: Ansistring; IdDoc: Double): OleVa
 function  ANTESDECAMBIODECAMPOENDOCUMENTOV2(Documento: String; IdDoc: Double;  Campo: String; const ValorAnterior, NuevoValor: OleVariant): OleVariant; stdcall;
 procedure DESPUESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer); stdcall;
 
+procedure CalculoLotes(vIdAlbc:double);
 var
   Bd:TdmdDatos;
   DatosIniAplicacion: TDatosIniAplicacion;
@@ -116,9 +117,13 @@ begin
       CambiadoPrcMedio := False;
    end;
 end;
+
+
+
 procedure DESPUESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer); stdcall;
 var
   lPrcMedioAnt: double;
+
 begin
    if  ((Documento = 'AV') and (estado < 2) and not (NoModificarCostes)) then
    begin
@@ -172,13 +177,67 @@ begin
            end
            else  //Si no hay lineas de coste, pongo los costes que devuelve Nax
            begin
-
-
              bd.ActualizaCosteLineas(IdDoc,0 ,DatosIniAplicacion.ModificarCostesManuales);
            end;
 
         end;
+        if  ((Documento = 'AC') and (estado < 2)) then
+        begin
+            CalculoLotes(IdDoc);
+
+        end;
     END;
+end;
+procedure CalculoLotes(vIdAlbc:double);
+var
+  lLote : string;
+  lineasModificar: string;
+  function CodigoFechaActual: string;
+  var
+    Fecha: TDateTime;
+    Ejercicio: Integer;
+    Semana: Integer;
+
+    DiaSemana: Integer;
+
+  begin
+    Fecha := Date;
+
+    Ejercicio := YearOf(Fecha) mod 100;
+    Semana := WeekOfTheYear(Fecha);
+    DiaSemana := DayOfTheWeek(Fecha);
+
+    Result := Format('%.2d%.2d%.2d', [Ejercicio, Semana, DiaSemana]);
+  end;
+begin
+  bd.ObtenerLineasConLote(vIdAlbc);
+  lLote := CodigoFechaActual + trim(bd.ObtenerCodPro(vIdAlbc));
+   // String que utilizaremos para comprobar que líneas tendrán que ser modificadas
+   lineasModificar := '-1';
+  with bd.qLineasLote do
+  begin
+   while not eof do
+   begin
+      // Recorremos todas las líneas que tenemos que actualizar y guardamos su id
+      lineasModificar := lineasModificar + ',' + inttostr(Trunc(fieldbyname('idlin').asfloat));
+      next;
+   end;
+  end;
+  with bd.query do
+  begin
+     Close;
+     sql.Clear;
+
+     // Actualizamos todas las líneas seleccionadas
+
+     sql.Add('Update linealba set lote = :PLOTE');
+     sql.Add(' where idlin in (' + lineasModificar + ')');
+
+     Parameters.ParamByName('PLOTE').Value := lLote;
+
+     ExecSQL;
+  end;
+
 end;
 
 end.

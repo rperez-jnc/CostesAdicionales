@@ -8,6 +8,7 @@ uses
 
 type
   TdmdDatos = class(TdmDLL)
+    qLineasLote: TADOQuery;
   private
     { Private declarations }
   public
@@ -17,6 +18,8 @@ type
     procedure ActualizaCosteLineas(vIdAlbv,vCosteUnidad:double; vModificarCostesManuales:boolean );
     procedure EliminaCostesAdicionalesAlbaran(vIdALbv:double);
     function BuscarParam(vIdalbv:double; vparametro:string):boolean;
+    procedure ObtenerLineasConLote(vIdAlbc:double);
+    function ObtenerCodPro(vIdAlbc:double):string;
    end;
 
 var
@@ -158,6 +161,45 @@ begin
 
     execsql;
   end;
+end;
+
+function TdmdDatos.ObtenerCodPro(vIdAlbc: double): string;
+begin
+   with query do
+   begin
+     close;
+     sql.Clear;
+
+     sql.Add('Select codpro from cabealbc with(nolock)');
+     sql.add(' where idalbc = ' + formateafloatsql(vIdAlbc));
+
+     open;
+
+     result := fieldbyname('CodPro').AsString;
+   end;
+end;
+
+procedure TdmdDatos.ObtenerLineasConLote(vIdAlbc: double);
+var
+  lcadena:string;
+begin
+   with qLineasLote do
+   begin
+     close;
+     sql.Clear;
+
+     // Obtenemos todas las líneas con lotes, que habría que actualizar.
+     sql.Add('Select l.idlin from linealba as l with(nolock) ');
+     sql.Add(' left outer join articulo with(nolock) on articulo.codart = l.codart ');
+     sql.Add(' where articulo.haylotes = ''T'' ');
+     sql.Add(' and ltrim(l.lote) = '''' ');
+     sql.Add(' and l.idalbc= ' + formateafloatsql(vIdAlbc)+ ' and l.unidades > 0 ');
+
+
+     lCadena := sql.Text;
+     open;
+
+   end;
 end;
 
 function TdmdDatos.SumaCostesAdiciones(vIdAlbv: double): double;
