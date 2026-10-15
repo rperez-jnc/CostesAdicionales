@@ -8,6 +8,7 @@ uses
 
 type
   TdmdDatos = class(TdmDLL)
+    qLineasLote: TADOQuery;
   private
     { Private declarations }
   public
@@ -16,6 +17,9 @@ type
     function SumaUnidadesLineas(vIdAlbv:double; ModificarCostesManuales:boolean):double;
     procedure ActualizaCosteLineas(vIdAlbv,vCosteUnidad:double; vModificarCostesManuales:boolean );
     procedure EliminaCostesAdicionalesAlbaran(vIdALbv:double);
+    function BuscarParam(vIdalbv:double; vparametro:string):boolean;
+    procedure ObtenerLineasConLote(vIdAlbc:double);
+    function ObtenerCodPro(vIdAlbc:double):string;
    end;
 
 var
@@ -79,19 +83,40 @@ begin
          //lPrcCoste := NaxVarios.ObtPrecioMedio(lCodArt,lCodAlm);
          if ((vCosteUnidad = 0) and  (lPrcCoste = 0) and (uppercase(lObtPrcCoste) <> 'MANU')) then
          begin
+
               lPrcCoste := NaxVarios.ObtPrecioCoste(lCodArt,lCodAlm,lObtPrcCoste);
+
+              NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste +  vCosteUnidad;
+              NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
+         end
+         else
+         if ((vCosteUnidad <> 0) and  (lPrcCoste = 0) and (uppercase(lObtPrcCoste) <> 'MANU')) then
+         begin
+
+              lPrcCoste := NaxVarios.ObtPrecioCoste(lCodArt,lCodAlm,lObtPrcCoste);
+
               NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste +  vCosteUnidad;
               NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
          end
          else
          if uppercase(lObtPrcCoste) <> 'MANU' then
          begin
+
               NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste +  vCosteUnidad;
               NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
          end
          else
          if ((uppercase(lObtPrcCoste) = 'MANU')  and (lPrcCoste <> 0)) then
          begin
+
+            NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste + vCosteUnidad ;
+            NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
+         end
+         else
+         begin
+
+            lPrcCoste := NaxAlbaran.AsFloatLin['PrcMedio'];
+           
             NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste + vCosteUnidad ;
             NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
          end;
@@ -109,6 +134,22 @@ begin
   NaxAlbaran.Acabar;
 end;
 
+function TdmdDatos.BuscarParam(vIdalbv:double; vparametro: string): boolean;
+begin
+  with query do
+  begin
+    close;
+    sql.Clear;
+
+    sql.Add('Select coalesce(' + vparametro + ',''F'') Parametro from cabealbv with(nolock)');
+    sql.Add('where idalbv = ' + formateafloatsql(vIdAlbv));
+
+    open;
+
+    result := FieldByName('parametro').asstring = 'T';
+  end;
+end;
+
 procedure TdmdDatos.EliminaCostesAdicionalesAlbaran(vIdALbv: double);
 begin
    with query do
@@ -120,6 +161,46 @@ begin
 
     execsql;
   end;
+end;
+
+function TdmdDatos.ObtenerCodPro(vIdAlbc: double): string;
+begin
+   with query do
+   begin
+     close;
+     sql.Clear;
+
+     sql.Add('Select p.Param1 from cabealbc c with(nolock)');
+     sql.Add('left outer join proveed p with(nolock) where p.codpro = c.codpro');
+     sql.add(' where c.idalbc = ' + formateafloatsql(vIdAlbc));
+
+     open;
+
+     result := fieldbyname('Param1').AsString;
+   end;
+end;
+
+procedure TdmdDatos.ObtenerLineasConLote(vIdAlbc: double);
+var
+  lcadena:string;
+begin
+   with qLineasLote do
+   begin
+     close;
+     sql.Clear;
+
+     // Obtenemos todas las líneas con lotes, que habría que actualizar.
+     sql.Add('Select l.idlin from linealba as l with(nolock) ');
+     sql.Add(' left outer join articulo with(nolock) on articulo.codart = l.codart ');
+     sql.Add(' where articulo.haylotes = ''T'' ');
+     sql.Add(' and ltrim(l.lote) = '''' ');
+     sql.Add(' and l.idalbc= ' + formateafloatsql(vIdAlbc)+ ' and l.unidades > 0 ');
+
+
+     lCadena := sql.Text;
+     open;
+
+   end;
 end;
 
 function TdmdDatos.SumaCostesAdiciones(vIdAlbv: double): double;
@@ -149,7 +230,7 @@ begin
 
     sql.Add('Select sum(coalesce(unidades,0)) unidades from linealba with(nolock)');
     sql.Add('where idalbv = ' + formateafloatsql(vIdAlbv));
-    if ModificarCostesManuales then
+    if not ModificarCostesManuales then
          sql.add('and obtprccoste <> ''MANU''');
 
     open;

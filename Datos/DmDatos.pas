@@ -170,12 +170,13 @@ begin
      close;
      sql.Clear;
 
-     sql.Add('Select codpro from cabealbc with(nolock)');
-     sql.add(' where idalbc = ' + formateafloatsql(vIdAlbc));
+     sql.Add('Select p.Param1 from cabealbc c with(nolock)');
+     sql.Add('left outer join proveed p with(nolock) on p.codpro = c.codpro');
+     sql.add(' where c.idalbc = ' + formateafloatsql(vIdAlbc));
 
      open;
 
-     result := fieldbyname('CodPro').AsString;
+     result := fieldbyname('Param1').AsString;
    end;
 end;
 
