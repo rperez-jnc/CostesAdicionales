@@ -1,0 +1,46 @@
+unit DatosIni;
+
+interface
+
+uses dll_fichIni, System.SysUtils, Dialogs, System.Classes;
+
+type
+   //Clase encargada de leer los datos de un fichero ini.
+  TDatosIniAplicacion = class(TDllDatosIni)
+  private
+    FModificarCostesManuales: boolean;
+    FParamNoModificarCostes: string;
+    FUsuariosExcluidosPaquetes: string;
+    FUsuariosExcluidosCajas: string;
+
+
+   public
+    procedure LeeIni; override;
+
+
+    property ModificarCostesManuales : boolean read  FModificarCostesManuales write FModificarCostesManuales;
+    property ParamNoModificarCostes : string read  FParamNoModificarCostes write FParamNoModificarCostes;
+    property UsuariosExcluidosCajas : string read  FUsuariosExcluidosCajas write FUsuariosExcluidosCajas;
+    property UsuariosExcluidosPaquetes : string read  FUsuariosExcluidosPaquetes write FUsuariosExcluidosPaquetes;
+
+
+
+  end;
+
+implementation
+
+{ TDatosIniAplicacion }
+
+procedure TDatosIniAplicacion.LeeIni;
+begin
+  inherited;
+
+
+  ModificarCostesManuales:= FArchivoIni.ReadString('Configuracion', 'ModificarCostesManuales', 'F') = 'T';
+  ParamNoModificarCostes := FArchivoIni.ReadString('Configuracion', 'ParamNoModificarCostes', 'Param1');
+  UsuariosExcluidosCajas := FArchivoIni.ReadString('Configuracion', 'UsuariosExcluidosCajas', '');
+  UsuariosExcluidosPaquetes := FArchivoIni.ReadString('Configuracion', 'UsuariosExcluidosPaquetes', '');
+
+end;
+
+end.

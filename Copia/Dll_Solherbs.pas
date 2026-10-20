@@ -1,0 +1,243 @@
+unit Dll_Solherbs;
+
+interface
+
+Uses dmDatos, Dialogs,RowObject, JncLib, SysUtils,dxCore,dll_modelo, DatosIni, System.Variants, System.DateUtils;
+
+
+procedure INICIAR(Empresa: PAnsiChar); stdcall;
+procedure FINALIZAR; stdcall;
+procedure DESPUESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; Estado: integer); stdcall;
+function REPINTAR(Tabla: AnsiString): boolean; stdcall;
+function ANTESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; var Cabecera: variant; var Lineas: variant;
+  Estado: integer): boolean; stdcall;
+function ANTESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer; var PermitirGuardar: boolean): variant; stdcall;
+function CAMPOSAESCUCHARENDOCUMENTO(Documento: Ansistring; IdDoc: Double): OleVariant; stdcall;
+function  ANTESDECAMBIODECAMPOENDOCUMENTOV2(Documento: String; IdDoc: Double;  Campo: String; const ValorAnterior, NuevoValor: OleVariant): OleVariant; stdcall;
+procedure DESPUESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer); stdcall;
+
+procedure CalculoLotes(vIdAlbc:double);
+var
+  Bd:TdmdDatos;
+  DatosIniAplicacion: TDatosIniAplicacion;
+  CambiadoPrcMedio: boolean;
+  NoModificarCostes : boolean;
+
+implementation
+
+procedure INICIAR(Empresa: PAnsiChar); stdcall;
+begin
+  dxInitialize;
+  Bd := TdmdDatos.Create(nil);
+  Bd.Conecta(Empresa);
+  DatosIniAplicacion := TDatosIniAplicacion.Create;
+  bd.IniciaEnlace;
+  CambiadoPrcMedio := False;
+  NoModificarCostes := False;
+end;
+
+procedure FINALIZAR; stdcall;
+begin
+   DatosIniAplicacion.Free;
+   bd.FinalizaEnlace;
+   Bd.Free;
+   dxFinalize;
+end;
+function REPINTAR(Tabla: AnsiString): boolean; stdcall;
+begin
+  result := True;
+end;
+function CAMPOSAESCUCHARENDOCUMENTO(Documento: Ansistring; IdDoc: Double): OleVariant; stdcall;
+begin
+   if Documento = 'AV' then
+  begin
+    result := varArrayCreate([0, 3], varVariant);
+    result[0] := 3;
+    result[1] := 'Linea.PrcMedio';
+    result[2] := 'Linea.ObtPrcCoste';
+    result[3] := 'Cabecera.'+ DatosIniAplicacion.paramnomodificarcostes;
+  end
+  else
+    result := Null;
+
+end;
+function  ANTESDECAMBIODECAMPOENDOCUMENTOV2(Documento: String; IdDoc: Double;  Campo: String; const ValorAnterior, NuevoValor: OleVariant): OleVariant; stdcall;
+begin
+  if campo = 'Linea.PrcMedio' then
+     CambiadoPrcMedio := true;
+  if ((campo = 'Linea.ObtPrcCoste') and not (NoModificarCostes)) then
+  begin
+     if ((ValorAnterior <> '') and (NuevoValor = 'MANU')) then
+     begin
+         Result := VarArrayOf([1, VarArrayOf(['SOL_COSTEANTERIOR', '0'])]);
+
+     end;
+
+  end;
+  if uppercase(campo) = Uppercase('Cabecera.'+ DatosIniAplicacion.paramnomodificarcostes) then
+  begin
+     if NuevoValor = 'T' then
+        NoModificarCostes := true
+     else
+        NoModificarCostes := false;
+
+  end;
+
+end;
+function ANTESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer; var PermitirGuardar: boolean): variant; stdcall;
+var
+  lPrcCoste : double;
+  lCostes : string;
+begin
+    PermitirGuardar := true;
+
+
+   if  ((Documento = 'AV') and (estado < 2) and (CambiadoPrcMedio) and not(NoModificarCostes)) then
+   begin
+
+      lPrcCoste := TInternoDLL.GetValorCampoVarFloat(Linea, 'prcmedio');
+      lCostes := ifnull(TInternoDLL.GetValorCampoVarStr(Linea, 'SOL_MODCOSTESADICIONALES'),'F');
+      NoModificarCostes := ifnull(TInternoDLL.GetValorCampoVarStr(Cabecera, DatosIniAplicacion.ParamNoModificarCostes),'F')= 'T';
+      if NoModificarCostes then
+         Exit;
+      if lCostes = 'T' then //Si la linea la estan modificando los costes, no hay que guardar el coste en el campo auxiliar
+      begin
+        result := varArrayCreate([0, 1], varVariant);
+            result[0] := 1;
+            result[1] := VarArrayOf(['SOL_MODCOSTESADICIONALES', 'F']);
+      end
+      else
+      begin
+
+         result := varArrayCreate([0, 1], varVariant);
+            result[0] := 1;
+            result[1] := VarArrayOf(['SOL_COSTEANTERIOR', lPrcCoste]);
+
+      end;
+      CambiadoPrcMedio := False;
+   end;
+end;
+
+
+
+procedure DESPUESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: variant; Estado: integer); stdcall;
+var
+  lPrcMedioAnt: double;
+
+begin
+   if  ((Documento = 'AV') and (estado < 2) and not (NoModificarCostes)) then
+   begin
+      NoModificarCostes :=   ifnull(TInternoDLL.GetValorCampoVarStr(Cabecera, DatosIniAplicacion.ParamNoModificarCostes),'F')= 'T';
+      if NoModificarCostes then
+         exit;
+      lPrcMedioAnt := ifnull(TInternoDLL.GetValorCampoVarFloat(Linea, 'SOL_COSTEANTERIOR'),0);
+
+
+   end;
+end;
+function ANTESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; var Cabecera: variant; var Lineas: variant;
+  Estado: integer): boolean; stdcall;
+begin
+   result := true;
+   if ((Documento = 'AV') and (Estado = 2)) then
+   begin
+
+      bd.EliminaCostesAdicionalesAlbaran(idDoc);
+   end;
+end;
+procedure DESPUESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; Estado: integer); stdcall;
+var
+  lImporteCosteAdicionales: double;
+  lNumUnidades : double;
+  lCosteUnidad: double;
+begin
+    if aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam(Documento)] = 'T' then
+    BEGIN
+         aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam(Documento)] := 'F';
+    END
+    ELSE
+    BEGIN
+         //ALBARANES
+        if ((Documento = 'AV') and (Estado < 2) and not (NoModificarCostes)) then
+        begin
+           NoModificarCostes := Bd.BuscarParam(iddoc, DatosIniAplicacion.ParamNoModificarCostes);
+           if NoModificarCostes  then
+             exit;
+
+           lImporteCosteAdicionales := bd.SumaCostesAdiciones(IdDoc);
+           if lImporteCosteAdicionales > 0 then
+           begin
+
+               lNumUnidades:= bd.SumaUnidadesLineas(IdDoc, DatosIniAplicacion.ModificarCostesManuales);
+               if lNumUnidades > 0 then
+               begin
+                 lCosteUnidad := lImporteCosteAdicionales /  lNumUnidades;
+                 bd.ActualizaCosteLineas(IdDoc,lCosteUnidad , DatosIniAplicacion.ModificarCostesManuales);
+               end;
+           end
+           else  //Si no hay lineas de coste, pongo los costes que devuelve Nax
+           begin
+             bd.ActualizaCosteLineas(IdDoc,0 ,DatosIniAplicacion.ModificarCostesManuales);
+           end;
+
+        end;
+        if  ((Documento = 'AC') and (estado < 2)) then
+        begin
+            CalculoLotes(IdDoc);
+
+        end;
+    END;
+end;
+procedure CalculoLotes(vIdAlbc:double);
+var
+  lLote : string;
+  lineasModificar: string;
+  function CodigoFechaActual: string;
+  var
+    Fecha: TDateTime;
+    Ejercicio: Integer;
+    Semana: Integer;
+
+    DiaSemana: Integer;
+
+  begin
+    Fecha := Date;
+
+    Ejercicio := YearOf(Fecha) mod 100;
+    Semana := WeekOfTheYear(Fecha);
+    DiaSemana := DayOfTheWeek(Fecha);
+
+    Result := Format('%.2d%.2d%.2d', [Ejercicio, Semana, DiaSemana]);
+  end;
+begin
+  bd.ObtenerLineasConLote(vIdAlbc);
+  lLote := CodigoFechaActual + trim(bd.ObtenerCodPro(vIdAlbc));
+   // String que utilizaremos para comprobar que líneas tendrán que ser modificadas
+   lineasModificar := '-1';
+  with bd.qLineasLote do
+  begin
+   while not eof do
+   begin
+      // Recorremos todas las líneas que tenemos que actualizar y guardamos su id
+      lineasModificar := lineasModificar + ',' + inttostr(Trunc(fieldbyname('idlin').asfloat));
+      next;
+   end;
+  end;
+  with bd.query do
+  begin
+     Close;
+     sql.Clear;
+
+     // Actualizamos todas las líneas seleccionadas
+
+     sql.Add('Update linealba set lote = :PLOTE');
+     sql.Add(' where idlin in (' + lineasModificar + ')');
+
+     Parameters.ParamByName('PLOTE').Value := lLote;
+
+     ExecSQL;
+  end;
+
+end;
+
+end.

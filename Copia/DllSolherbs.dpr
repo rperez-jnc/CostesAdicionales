@@ -15,7 +15,9 @@ uses
   System.Classes,
   Dll_Solherbs in 'Dll_Solherbs.pas',
   DLL_dmEstandar in '..\..\comun\dlls\DLL_dmEstandar.pas' {dmDLL: TDataModule},
-  DmDatos in 'Datos\DmDatos.pas' {dmdDatos: TDataModule};
+  DmDatos in 'Datos\DmDatos.pas' {dmdDatos: TDataModule},
+  dll_fichINI in '..\..\comun\dlls\dll_fichINI.pas',
+  DatosIni in 'Datos\DatosIni.pas';
 
 {$R *.res}
 
@@ -23,6 +25,11 @@ exports
   INICIAR,
   FINALIZAR,
   DESPUESDEGUARDARDOCUMENTOV2,
+  ANTESDEGUARDARDOCUMENTOV2,
+  ANTESDEGUARDARLINEAV2,
+  CAMPOSAESCUCHARENDOCUMENTO,
+  ANTESDECAMBIODECAMPOENDOCUMENTOV2,
+  DESPUESDEGUARDARLINEAV2,
   REPINTAR;
 
 begin

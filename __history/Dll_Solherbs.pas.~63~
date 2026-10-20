@@ -7,6 +7,7 @@ Uses dmDatos, Dialogs,RowObject, JncLib, SysUtils,dxCore,dll_modelo, DatosIni, S
 
 procedure INICIAR(Empresa: PAnsiChar); stdcall;
 procedure FINALIZAR; stdcall;
+function ACTIVARMETODOSALSERVIR: Boolean; stdcall;
 procedure DESPUESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; Estado: integer); stdcall;
 function REPINTAR(Tabla: AnsiString): boolean; stdcall;
 function ANTESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; var Cabecera: variant; var Lineas: variant;
@@ -22,6 +23,7 @@ var
   DatosIniAplicacion: TDatosIniAplicacion;
   CambiadoPrcMedio: boolean;
   NoModificarCostes : boolean;
+  ProcesandoAlternativos : boolean;
 
 implementation
 
@@ -34,6 +36,7 @@ begin
   bd.IniciaEnlace;
   CambiadoPrcMedio := False;
   NoModificarCostes := False;
+  ProcesandoAlternativos := False;
 end;
 
 procedure FINALIZAR; stdcall;
@@ -150,13 +153,43 @@ var
   lImporteCosteAdicionales: double;
   lNumUnidades : double;
   lCosteUnidad: double;
+  lCajas, lPaquetes:boolean;
+  li:integer;
 begin
+
     if aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam(Documento)] = 'T' then
     BEGIN
          aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam(Documento)] := 'F';
     END
     ELSE
     BEGIN
+        lCajas := true;
+        lPaquetes := true;
+        for lI := 0 to DatosIni.UsuariosExcluidosCajasList.Count - 1 do
+        if (UPPERCASE(bd.NaxEnlace.Usuario)   = UPPERCASE(DatosIni.UsuariosExcluidosCajasList[li])) then
+        begin
+            lCajas := False;
+
+        end;
+        for lI := 0 to DatosIni.UsuariosExcluidosPaquetesList.Count - 1 do
+        if (UPPERCASE(bd.NaxEnlace.Usuario)   = UPPERCASE(DatosIni.UsuariosExcluidosPaquetesList[li])) then
+        begin
+            lPaquetes := False;
+
+        end;
+         // VENTAS: nueva regularizacion de cajas independiente de compras.
+
+        if ((Documento = 'AV') and (Estado < 2) and (IdDoc > 0) and (lCajas) )then
+        begin
+          try
+            Bd.GenerarRegularizacionesAlternativosVenta(IdDoc);
+          except
+            on E: Exception do
+              MessageDlg('Regularizacion de cajas no completada: ' +
+                E.Message, mtError, [mbOK], 0);
+          end;
+        end;
+
          //ALBARANES
         if ((Documento = 'AV') and (Estado < 2) and not (NoModificarCostes)) then
         begin
@@ -177,26 +210,53 @@ begin
            end
            else  //Si no hay lineas de coste, pongo los costes que devuelve Nax
            begin
-
-
              bd.ActualizaCosteLineas(IdDoc,0 ,DatosIniAplicacion.ModificarCostesManuales);
            end;
 
         end;
         if  ((Documento = 'AC') and (estado < 2)) then
-       begin
+        begin
             CalculoLotes(IdDoc);
-            lLote :=  ifnull(TInternoDLL.GetValorCampoDetalleStr(Detalle, 'Lote'),'');
-            if lLote = '' then
-            begin
-               lLote := CodigoFechaActual +  trim(TInternoDLL.GetValorCampoVarStr(Cabecera, 'CodPro'));
-                result := varArrayCreate([0, 1], varVariant);
-                result[0] := 1;
-                result[1] := VarArrayOf(['Lote', lLote]);
+
+        end;
+        // SERVIDO AUTOMATICO DE ARTICULOS ALTERNATIVOS
+        // Solo al guardar o modificar albaranes de compra.
+        if (Documento = 'AC') and
+           ((Estado = 0) or (Estado = 1)) and
+           (IdDoc > 0) and
+           (not ProcesandoAlternativos) then
+        begin
+          if lPaquetes then
+          begin
+            ProcesandoAlternativos := True;
+            try
+              try
+                Bd.ProcesarAlternativosAlbaran(IdDoc);
+              except
+                on E: Exception do
+                  MessageDlg(
+                    'Error al servir articulos alternativos:' +
+                    sLineBreak + E.Message,
+                    mtError, [mbOK], 0
+                  );
+              end;
+            finally
+              ProcesandoAlternativos := False;
             end;
-       end;
+          end;
+        end;
+
+       
+
     END;
 end;
+
+function ACTIVARMETODOSALSERVIR: Boolean; stdcall;
+begin
+  Result := True;
+end;
+
+
 procedure CalculoLotes(vIdAlbc:double);
 var
   lLote : string;
@@ -216,11 +276,11 @@ var
     Semana := WeekOfTheYear(Fecha);
     DiaSemana := DayOfTheWeek(Fecha);
 
-    Result := Format('%.2d%.2d%d', [Ejercicio, Semana, DiaSemana]);
+    Result := Format('%.2d%.2d%.2d', [Ejercicio, Semana, DiaSemana]);
   end;
 begin
   bd.ObtenerLineasConLote(vIdAlbc);
-  lLote := CodigoFechaActual + bd.ObtenerCodPro(vIdAlbc);
+  lLote := CodigoFechaActual + trim(bd.ObtenerCodPro(vIdAlbc));
    // String que utilizaremos para comprobar que líneas tendrán que ser modificadas
    lineasModificar := '-1';
   with bd.qLineasLote do

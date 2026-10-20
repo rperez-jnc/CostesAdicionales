@@ -10,6 +10,12 @@ type
   private
     FModificarCostesManuales: boolean;
     FParamNoModificarCostes: string;
+    FUsuariosExcluidosPaquetes: string;
+    FUsuariosExcluidosCajas: string;
+    FUsuariosExcluidosPaquetesList: TstringList;
+    FUsuariosExcluidosCajasList: TstringList;
+    FUsuariosExcluidosCostes: string;
+    FUsuariosExcluidosCostesList: TstringList;
 
 
    public
@@ -18,7 +24,12 @@ type
 
     property ModificarCostesManuales : boolean read  FModificarCostesManuales write FModificarCostesManuales;
     property ParamNoModificarCostes : string read  FParamNoModificarCostes write FParamNoModificarCostes;
-
+    property UsuariosExcluidosCajas : string read  FUsuariosExcluidosCajas write FUsuariosExcluidosCajas;
+    property UsuariosExcluidosPaquetes : string read  FUsuariosExcluidosPaquetes write FUsuariosExcluidosPaquetes;
+    property UsuariosExcluidosCostes : string read  FUsuariosExcluidosCostes write FUsuariosExcluidosCostes;
+    property UsuariosExcluidosCajasList : TstringList read  FUsuariosExcluidosCajasList write FUsuariosExcluidosCajasList;
+    property UsuariosExcluidosPaquetesList : TstringList read  FUsuariosExcluidosPaquetesList write FUsuariosExcluidosPaquetesList;
+    property UsuariosExcluidosCostesList : TstringList read  FUsuariosExcluidosCostesList write FUsuariosExcluidosCostesList;
 
 
 
@@ -35,7 +46,22 @@ begin
 
   ModificarCostesManuales:= FArchivoIni.ReadString('Configuracion', 'ModificarCostesManuales', 'F') = 'T';
   ParamNoModificarCostes := FArchivoIni.ReadString('Configuracion', 'ParamNoModificarCostes', 'Param1');
+  UsuariosExcluidosCajas := FArchivoIni.ReadString('Configuracion', 'UsuariosExcluidosCajas', '');
+  UsuariosExcluidosPaquetes := FArchivoIni.ReadString('Configuracion', 'UsuariosExcluidosPaquetes', '');
+  UsuariosExcluidosCostes := FArchivoIni.ReadString('Configuracion', 'UsuariosExcluidosCostes', '');
 
+
+  UsuariosExcluidosCajasList:= TStringList.Create;
+  UsuariosExcluidosCajasList.Delimiter := ',';
+  UsuariosExcluidosCajasList.DelimitedText := UsuariosExcluidosCajas;
+
+  UsuariosExcluidosPaquetesList:= TStringList.Create;
+  UsuariosExcluidosPaquetesList.Delimiter := ',';
+  UsuariosExcluidosPaquetesList.DelimitedText := UsuariosExcluidosPaquetes;
+
+  UsuariosExcluidosCostesList:= TStringList.Create;
+  UsuariosExcluidosCostesList.Delimiter := ',';
+  UsuariosExcluidosCostesList.DelimitedText := UsuariosExcluidosCostes;
 end;
 
 end.

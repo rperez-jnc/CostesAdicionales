@@ -4,7 +4,7 @@ interface
 
 uses
   a3ERPActiveX_TLB, System.SysUtils, System.Classes, DLL_dmEstandar, Data.DB,
-  Data.Win.ADODB, JncLib, Dll_Modelo, Dialogs, System.UiTypes;
+  Data.Win.ADODB, JncLib, Dll_Modelo, Dialogs, System.UiTypes, Math;
 
 type
   TdmdDatos = class(TdmDLL)
@@ -20,6 +20,12 @@ type
     function BuscarParam(vIdalbv:double; vparametro:string):boolean;
     procedure ObtenerLineasConLote(vIdAlbc:double);
     function ObtenerCodPro(vIdAlbc:double):string;
+    procedure ProcesarAlternativosAlbaran(const IdAlbC: Double);
+    procedure GenerarRegularizacionesAlternativosVenta(const IdAlbv: Double);
+    function BuscarNumeroDocumento(vIdDoc:double;vTipo:string):string;
+    function CalcularPaquetesArticulo(vCodArt:string; vUnidades:double; vDocumento:string):integer;
+    function CalcularBultosArticulo(vCodArt:string; vPaquetes:integer; vDocumento:string):integer;
+
    end;
 
 var
@@ -69,7 +75,9 @@ begin
 
       NaxAlbaran.EditarLinea(lNumLin);
       //lCoste := NaxAlbaran.AsFloatLin['PrcMedio'];
+
       lUnidades :=NaxAlbaran.AsFloatLin['Unidades'];
+
       lObtPrcCoste :=NaxAlbaran.AsStringLin['ObtPrcCoste'];
       lCodAlm := Fieldbyname('CodAlm').AsString;
       lCodArt := Fieldbyname('CodArt').AsString;
@@ -78,7 +86,7 @@ begin
       if ((uppercase(lObtPrcCoste) <> 'MANU') or (vModificarCostesManuales)) then
       begin
 
-        lPrcCoste := NaxAlbaran.AsFloatLin['SOL_COSTEANTERIOR'];
+        lPrcCoste := ifnull(NaxAlbaran.AsFloatLin['SOL_COSTEANTERIOR'],0);
 
          //lPrcCoste := NaxVarios.ObtPrecioMedio(lCodArt,lCodAlm);
          if ((vCosteUnidad = 0) and  (lPrcCoste = 0) and (uppercase(lObtPrcCoste) <> 'MANU')) then
@@ -134,6 +142,22 @@ begin
   NaxAlbaran.Acabar;
 end;
 
+function TdmdDatos.BuscarNumeroDocumento(vIdDoc: double; vTipo: string): string;
+begin
+    with query do
+  begin
+    close;
+    sql.Clear;
+
+    sql.Add('Select TipoCont, Serie, NumDoc from '+ TTAblaA3.Tabla(vTipo) + ' with(nolock)');
+    sql.Add('where ' + TTablaA3.Codigo(vTipo)+ '  = ' + formateafloatsql(vIdDoc));
+
+    open;
+
+    result := Trim(FieldByName('TipoCont').asstring )  +'/' + Trim(fieldbyname('serie').AsString) + '/' + Inttostr(Trunc(fieldbyname('numdoc').AsFloat));
+  end;
+end;
+
 function TdmdDatos.BuscarParam(vIdalbv:double; vparametro: string): boolean;
 begin
   with query do
@@ -150,6 +174,59 @@ begin
   end;
 end;
 
+function TdmdDatos.CalcularBultosArticulo(vCodArt: string; vPaquetes: integer;
+  vDocumento: string): integer;
+var
+   lCampo:string;
+begin
+  if vdocumento = 'AV' then
+      lCampo := 'PaqBulV'
+  else
+      lCampo := 'PaqBulC';
+
+  with query do
+  begin
+    close;
+    sql.Clear;
+
+    sql.Add('Select '  + lCampo + ' paqbul from articulo with(nolock)' );
+    sql.Add('where codart = ' + quotedstr(vCodArt));
+
+    open;
+    if fieldbyname('paqbul').AsFloat <> 0 then
+       result := Ceil(vPaquetes / fieldbyname('paqbul').AsFloat)
+    else
+       result := 1;
+  end;
+
+end;
+
+function TdmdDatos.CalcularPaquetesArticulo(vCodArt: string; vUnidades: double;
+  vDocumento: string): integer;
+var
+   lCampo:string;
+begin
+  if vdocumento = 'AV' then
+      lCampo := 'UniPaqV'
+  else
+      lCampo := 'UniPaqC';
+
+  with query do
+  begin
+    close;
+    sql.Clear;
+
+    sql.Add('Select '  + lCampo + ' unipaq from articulo with(nolock)' );
+    sql.Add('where codart = ' + quotedstr(vCodArt));
+
+    open;
+    if fieldbyname('Unipaq').AsFloat <> 0 then
+        result := Ceil(vUnidades / fieldbyname('Unipaq').AsFloat)
+    else
+        result := 1;
+  end;
+end;
+
 procedure TdmdDatos.EliminaCostesAdicionalesAlbaran(vIdALbv: double);
 begin
    with query do
@@ -160,6 +237,290 @@ begin
     sql.Add('Delete sol_costesadicionales where sol_idalbv = ' + formateafloatsql(vIdAlbv));
 
     execsql;
+  end;
+end;
+
+procedure TdmdDatos.GenerarRegularizacionesAlternativosVenta(
+  const IdAlbv: Double);
+type
+  TLinea = record
+    CodAlm: string;
+    CodArt: string;
+    Cantidad: Double; // Valor positivo; el movimiento de stock es negativo.
+  end;
+var
+  Q, QControl, QAux, QLin: TADOQuery;
+  Deseadas: array of TLinea;
+  Almacenes: TStringList;
+  Reg: IRegularizacion;
+  IdReg, NuevoId: Currency;
+  I, J, K: Integer;
+  Alm, Estado, Avisos: string;
+  Existe, Cambiado, Iniciado: Boolean;
+  TotalDeseado, TotalActual: Double;
+  CodArt: string;
+
+  procedure Ejecutar(const SQLTexto: string; const AIdReg: Currency = 0);
+  begin
+    QAux.Close;
+    QAux.SQL.Text := SQLTexto;
+    if Pos(':ALB',SQLTexto)>0 then
+      QAux.Parameters.ParamByName('ALB').Value := IdAlbv;
+    if Pos(':ALM',SQLTexto)>0 then
+      QAux.Parameters.ParamByName('ALM').Value := Alm;
+    if Pos(':REG',SQLTexto)>0 then
+      QAux.Parameters.ParamByName('REG').Value := AIdReg;
+    QAux.ExecSQL;
+  end;
+
+  procedure GuardarDetalle;
+  var
+    L:integer;
+  begin
+    // Este detalle es la fotografia completa de cantidades ya regularizadas.
+    Ejecutar('DELETE FROM dbo.SOL_REGALT_DET WHERE IDALBV=:ALB AND CODALM=:ALM');
+    for L := 0 to High(Deseadas) do
+      if (Deseadas[L].CodAlm = Alm) and (Deseadas[L].Cantidad > 0.000001) then
+      begin
+        QAux.Close;
+        QAux.SQL.Text := 'INSERT INTO dbo.SOL_REGALT_DET ' +
+          '(IDALBV,CODALM,CODART,UNIDADES) VALUES (:ALB,:ALM,:ART,:UNI)';
+        QAux.Parameters.ParamByName('ALB').Value := IdAlbv;
+        QAux.Parameters.ParamByName('ALM').Value := Alm;
+        QAux.Parameters.ParamByName('ART').Value := Deseadas[L].CodArt;
+        QAux.Parameters.ParamByName('UNI').Value := Deseadas[L].Cantidad;
+        QAux.ExecSQL;
+      end;
+  end;
+
+  procedure LeerLineasReg(const AIdReg: Currency);
+  begin
+    QLin.Close;
+    QLin.SQL.Text :=
+      'SELECT NUMLIN,CODART,UNIDADES FROM LINEREGU ' +
+      'WHERE IDREG=:REG ORDER BY NUMLIN';
+    QLin.Parameters.ParamByName('REG').Value := AIdReg;
+    QLin.Open;
+  end;
+
+begin
+  if IdAlbv <= 0 then Exit;
+  Q := TADOQuery.Create(nil);
+  QControl := TADOQuery.Create(nil);
+  QAux := TADOQuery.Create(nil);
+  QLin := TADOQuery.Create(nil);
+  Almacenes := TStringList.Create;
+  try
+    Q.Connection := query.Connection;
+    QControl.Connection := query.Connection;
+    QAux.Connection := query.Connection;
+    QLin.Connection := query.Connection;
+    Almacenes.Sorted := True;
+    Almacenes.Duplicates := dupIgnore;
+
+    Q.SQL.Text :=
+      'SELECT L.CODALM, A.CODARTALT AS CODART, ' +
+      'CEILING(SUM(CAST(L.UNIDADES AS decimal(22,6)) / ' +
+      'CAST(A.UNIPAQV AS decimal(22,6)))) AS UNIDADES ' +
+      'FROM LINEALBA L JOIN ARTICULO A ON A.CODART=L.CODART ' +
+      'WHERE L.IDALBV=:ALB AND L.UNIDADES>0 ' +
+      'AND NULLIF(LTRIM(RTRIM(A.CODARTALT)),'''') IS NOT NULL ' +
+      'AND A.UNIPAQV>0 ' +
+      'GROUP BY L.CODALM,A.CODARTALT ORDER BY L.CODALM,A.CODARTALT';
+    Q.Parameters.ParamByName('ALB').Value := IdAlbv;
+    Q.Open;
+    while not Q.Eof do
+    begin
+      I := Length(Deseadas);
+      SetLength(Deseadas,I+1);
+      Deseadas[I].CodAlm := Q.FieldByName('CODALM').AsString;
+      Deseadas[I].CodArt := Q.FieldByName('CODART').AsString;
+      Deseadas[I].Cantidad := Q.FieldByName('UNIDADES').AsFloat;
+      Almacenes.Add(Deseadas[I].CodAlm);
+      Q.Next;
+    end;
+    Q.Close;
+
+    // Incluir almacenes que ya tenian regularizacion pero ahora tienen cero
+    // lineas requeridas (por reduccion o eliminacion en el AV).
+    Q.SQL.Text := 'SELECT CODALM FROM dbo.SOL_REGALT_AV WHERE IDALBV=:ALB';
+    Q.Parameters.ParamByName('ALB').Value := IdAlbv;
+    Q.Open;
+    while not Q.Eof do
+    begin
+      Almacenes.Add(Q.FieldByName('CODALM').AsString);
+      Q.Next;
+    end;
+    Q.Close;
+
+    Avisos := '';
+    for I := 0 to Almacenes.Count-1 do
+    begin
+      Alm := Almacenes[I];
+      if Trim(Alm)='' then
+        raise Exception.Create('AV '+FloatToStr(IdAlbv)+': CODALM vacio');
+
+      QControl.Close;
+      QControl.SQL.Text :=
+        'SELECT ESTADO,IDREG FROM dbo.SOL_REGALT_AV ' +
+        'WHERE IDALBV=:ALB AND CODALM=:ALM';
+      QControl.Parameters.ParamByName('ALB').Value := IdAlbv;
+      QControl.Parameters.ParamByName('ALM').Value := Alm;
+      QControl.Open;
+      Existe := not QControl.Eof;
+      IdReg := 0;
+      if Existe then
+      begin
+        Estado := QControl.FieldByName('ESTADO').AsString;
+        if not QControl.FieldByName('IDREG').IsNull then
+          IdReg := QControl.FieldByName('IDREG').AsCurrency;
+      end
+      else Estado := '';
+      QControl.Close;
+      if Existe and ((Estado <> 'C') or (IdReg <= 0)) then
+        raise Exception.Create('Regularizacion de AV '+FloatToStr(IdAlbv)+
+          ', almacen '+Trim(Alm)+' pendiente de comprobacion (estado '+Estado+').');
+
+      // Comparar estado deseado con el detalle persistido.
+      Cambiado := not Existe;
+      if Existe then
+      begin
+        QControl.SQL.Text :=
+          'SELECT CODART,UNIDADES FROM dbo.SOL_REGALT_DET ' +
+          'WHERE IDALBV=:ALB AND CODALM=:ALM';
+        QControl.Parameters.ParamByName('ALB').Value := IdAlbv;
+        QControl.Parameters.ParamByName('ALM').Value := Alm;
+        QControl.Open;
+        while not QControl.Eof do
+        begin
+          CodArt := QControl.FieldByName('CODART').AsString;
+          TotalActual := QControl.FieldByName('UNIDADES').AsFloat;
+          TotalDeseado := 0;
+          for J := 0 to High(Deseadas) do
+            if (Deseadas[J].CodAlm=Alm) and (Deseadas[J].CodArt=CodArt) then
+              TotalDeseado := Deseadas[J].Cantidad;
+          if Abs(TotalDeseado-TotalActual)>0.00001 then Cambiado := True;
+          QControl.Next;
+        end;
+        QControl.Close;
+        for J := 0 to High(Deseadas) do
+          if Deseadas[J].CodAlm=Alm then
+          begin
+            QControl.SQL.Text :=
+              'SELECT COUNT(*) AS N FROM dbo.SOL_REGALT_DET ' +
+              'WHERE IDALBV=:ALB AND CODALM=:ALM AND CODART=:ART';
+            QControl.Parameters.ParamByName('ALB').Value := IdAlbv;
+            QControl.Parameters.ParamByName('ALM').Value := Alm;
+            QControl.Parameters.ParamByName('ART').Value := Deseadas[J].CodArt;
+            QControl.Open;
+            if QControl.FieldByName('N').AsInteger=0 then Cambiado := True;
+            QControl.Close;
+          end;
+      end;
+      if not Cambiado then Continue;
+
+      TotalDeseado := 0;
+      for J := 0 to High(Deseadas) do
+        if Deseadas[J].CodAlm=Alm then
+          TotalDeseado := TotalDeseado+Deseadas[J].Cantidad;
+
+      // La regularizacion vacia puede ser rechazada por a3ERP. Nunca
+      // eliminar el documento silenciosamente: requerir confirmacion manual.
+      if TotalDeseado < 0.000001 then
+        raise Exception.Create('AV '+ BuscarNumeroDocumento(IdAlbv,'AV')+', almacen '+
+          Trim(Alm)+': regularizacion '+ BuscarNumeroDocumento(IdReg,'RE') +' quedaria sin lineas; revisar anulacion.');
+
+      // Marcar ANTES de llamar a ActiveX para evitar reintentos peligrosos.
+      if Existe then
+        Ejecutar('UPDATE dbo.SOL_REGALT_AV SET ESTADO=''P'' ' +
+          'WHERE IDALBV=:ALB AND CODALM=:ALM AND ESTADO=''C''')
+      else
+      begin
+        QAux.SQL.Text :=
+          'INSERT INTO dbo.SOL_REGALT_AV (IDALBV,CODALM,ESTADO,FECHA) ' +
+          'VALUES (:ALB,:ALM,''P'',:FECHA)';
+        QAux.Parameters.ParamByName('ALB').Value := IdAlbv;
+        QAux.Parameters.ParamByName('ALM').Value := Alm;
+        QAux.Parameters.ParamByName('FECHA').Value := Now;
+        QAux.ExecSQL;
+      end;
+
+      Reg := nil;
+      Iniciado := False;
+      try
+        Reg := CoRegularizacion.Create;
+        Reg.Iniciar;
+        Iniciado := True;
+        if Existe then
+        begin
+          Reg.Modifica(IdReg);
+          LeerLineasReg(IdReg);
+          // Borrar lineas de mayor a menor para evitar desplazamientos.
+          // Primero almacenar identificadores, no mantener cursor activo.
+          // QLin devuelve NUMLIN (no IDLIN).
+          // Las regularizaciones de esta DLL son documentos exclusivos.
+          while not QLin.Eof do
+          begin
+            Reg.BorrarLinea(QLin.FieldByName('NUMLIN').AsCurrency);
+            QLin.Next;
+          end;
+          QLin.Close;
+        end
+        else
+          Reg.Nuevo(FormatDateTime('dd/mm/yyyy',Date),Alm);
+
+        for K := 0 to High(Deseadas) do
+          if Deseadas[K].CodAlm=Alm then
+          begin
+            Reg.NuevaLineaArt(Deseadas[K].CodArt,-Deseadas[K].Cantidad);
+            Reg.AnadirLinea;
+          end;
+        NuevoId := Reg.Anade;
+        if NuevoId<=0 then
+          raise Exception.Create('ActiveX no devuelve IDREG valido');
+        if Existe and (NuevoId<>IdReg) then
+          raise Exception.Create('ActiveX ha cambiado el IDREG; revisar documento');
+        IdReg := NuevoId;
+
+        // Solo al confirmar ActiveX actualizar la fotografia SQL.
+        // Si falla esta fase, ESTADO=P evita repetir el descuento.
+        QAux.Connection.BeginTrans;
+        try
+          GuardarDetalle;
+          Ejecutar('UPDATE dbo.SOL_REGALT_AV SET ESTADO=''C'',IDREG=:REG ' +
+            'WHERE IDALBV=:ALB AND CODALM=:ALM AND ESTADO=''P''',IdReg);
+          QAux.Connection.CommitTrans;
+        except
+          QAux.Connection.RollbackTrans;
+          raise;
+        end;
+        if Existe then
+          Avisos := Avisos+'Regularizacion '+BuscarNumeroDocumento(IdReg,'RE')+
+            ' modificada (almacen '+Trim(Alm)+').' + sLineBreak
+        else
+          Avisos := Avisos+'Regularizacion '+BuscarNumeroDocumento(IdReg,'RE')+
+            ' creada (almacen '+Trim(Alm)+').' + sLineBreak;
+      except
+        on E: Exception do
+        begin
+          if Iniciado then
+            try Reg.Cancela; except end;
+          raise Exception.Create('AV '+BuscarNumeroDocumento(IdAlbv,'AV')+', almacen '+
+            Trim(Alm)+': '+E.Message+
+            '. Estado P: revisar antes de reintentar.');
+        end;
+      end;
+      if Iniciado then Reg.Acabar;
+      Reg := nil;
+    end;
+    if Avisos<>'' then
+      MessageDlg(Avisos,mtInformation,[mbOK],0);
+  finally
+    Almacenes.Free;
+    QLin.Free;
+    QAux.Free;
+    QControl.Free;
+    Q.Free;
   end;
 end;
 
@@ -237,6 +598,151 @@ begin
 
     result := fieldbyname('unidades').AsFloat;
 
+  end;
+end;
+
+
+// NUEVO: trabaja sobre un AV ya confirmado. Nunca ejecuta UPDATE de documentos.
+procedure TdmdDatos.ProcesarAlternativosAlbaran(const IdAlbC: Double);
+type
+  TGrupo = record
+    IdPedC: Double;
+    CodAlternativo: string;
+    Necesarias: Double;
+    YaEnAlbaran: Double;
+  end;
+  TLineaPlan = record
+    NumLinPed: Double;
+    Cantidad: Double;
+  end;
+var
+  QGrupos, QLineas: TADOQuery;
+  Grupos: array of TGrupo;
+  Plan: array of TLineaPlan;
+  NaxAlbaran: Albaran;
+  I, J, N: Integer;
+  Necesarias, Disponibles, Restantes, Pend, Cantidad: Double;
+  Preparado, MarcaGuardado: Boolean;
+  Aviso: string;
+  function Num(const Valor: Double): string;
+  begin
+    Result := FormatFloat('0.######', Valor);
+  end;
+begin
+  if IdAlbC <= 0 then Exit;
+  QGrupos := TADOQuery.Create(nil);
+  QLineas := TADOQuery.Create(nil);
+  try
+    QGrupos.Connection := query.Connection;
+    QLineas.Connection := query.Connection;
+    QGrupos.SQL.Text :=
+      'SELECT L.IDPEDC, A.CODARTALT, ' +
+      ' CEILING(SUM(L.UNIDADES / A.UNIPAQC)) AS NECESARIAS, ' +
+      ' (SELECT COALESCE(SUM(X.UNIDADES),0) FROM LINEALBA X ' +
+      '   WHERE X.IDALBC = :ALB2 AND X.IDPEDC = L.IDPEDC ' +
+      '     AND X.CODART = A.CODARTALT) AS YA_EN_ALBARAN ' +
+      'FROM LINEALBA L INNER JOIN ARTICULO A ON A.CODART = L.CODART ' +
+      'WHERE L.IDALBC = :ALB AND L.IDPEDC IS NOT NULL ' +
+      ' AND NULLIF(LTRIM(RTRIM(A.CODARTALT)), '''') IS NOT NULL ' +
+      ' AND L.UNIDADES > 0 ' +
+      ' AND A.UNIPAQC > 0 ' +
+      'GROUP BY L.IDPEDC, A.CODARTALT';
+    QGrupos.Parameters.ParamByName('ALB').Value := IdAlbC;
+    QGrupos.Parameters.ParamByName('ALB2').Value := IdAlbC;
+    QGrupos.Open;
+    while not QGrupos.Eof do
+    begin
+      N := Length(Grupos);
+      SetLength(Grupos, N+1);
+      Grupos[N].IdPedC := QGrupos.FieldByName('IDPEDC').AsFloat;
+      Grupos[N].CodAlternativo := QGrupos.FieldByName('CODARTALT').AsString;
+      Grupos[N].Necesarias := QGrupos.FieldByName('NECESARIAS').AsFloat;
+      Grupos[N].YaEnAlbaran := QGrupos.FieldByName('YA_EN_ALBARAN').AsFloat;
+      QGrupos.Next;
+    end;
+    QGrupos.Close;
+
+    for I := 0 to High(Grupos) do
+    begin
+      Necesarias := Grupos[I].Necesarias - Grupos[I].YaEnAlbaran;
+      if Necesarias <= 0.000001 then Continue;
+      if Grupos[I].Necesarias <= 0 then Continue;
+
+      QLineas.Close;
+      QLineas.SQL.Text :=
+        'SELECT NUMLINPED, ' +
+        ' (UNIDADES-COALESCE(UNISERVIDA,0)-COALESCE(UNIANULADA,0)) AS PENDIENTES ' +
+        'FROM LINEPEDI WHERE IDPEDC = :PED AND CODART = :ART ' +
+        ' AND UNIDADES-COALESCE(UNISERVIDA,0)-COALESCE(UNIANULADA,0) > 0 ' +
+        'ORDER BY NUMLINPED';
+      QLineas.Parameters.ParamByName('PED').Value := Grupos[I].IdPedC;
+      QLineas.Parameters.ParamByName('ART').Value := Grupos[I].CodAlternativo;
+      QLineas.Open;
+      SetLength(Plan,0);
+      Restantes := Necesarias;
+      Disponibles := 0;
+      while not QLineas.Eof do
+      begin
+        Pend := QLineas.FieldByName('PENDIENTES').AsFloat;
+        Disponibles := Disponibles + Pend;
+        if (Restantes > 0.000001) and (Pend > 0) then
+        begin
+          if Pend < Restantes then Cantidad := Pend else Cantidad := Restantes;
+          N := Length(Plan);
+          SetLength(Plan,N+1);
+          Plan[N].NumLinPed := QLineas.FieldByName('NUMLINPED').AsFloat;
+          Plan[N].Cantidad := Cantidad;
+          Restantes := Restantes - Cantidad;
+        end;
+        QLineas.Next;
+      end;
+      QLineas.Close;
+      if Restantes > 0.000001 then
+      begin
+        Aviso := 'No se puede servir el articulo alternativo ' +
+          Trim(Grupos[I].CodAlternativo) + ' del pedido ' + Num(Grupos[I].IdPedC) + '.' + sLineBreak +
+          'Necesarias: ' + Num(Necesarias) + '. Pendientes: ' + Num(Disponibles) + '.' + sLineBreak +
+          'El albaran principal se conserva y NO se sirve ninguna linea del alternativo.';
+        MessageDlg(Aviso, mtWarning, [mbOK], 0);
+        Continue;
+      end;
+
+      NaxAlbaran := nil;
+      Preparado := False;
+      MarcaGuardado := False;
+      try
+        NaxAlbaran := CoAlbaran.Create;
+        NaxAlbaran.Iniciar;
+        Preparado := True;
+        NaxAlbaran.Modifica(IdAlbC, True);
+        NaxAlbaran.IniciarServir('P', Grupos[I].IdPedC, False);
+        for J := 0 to High(Plan) do
+          NaxAlbaran.ServirLinea(0, Plan[J].NumLinPed, 0, 0,
+            Plan[J].Cantidad, 0, '', '', '', '');
+        NaxAlbaran.FinServir;
+        // MISMO patron de recursividad que ActualizaCosteLineas.
+        aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam('AC')] := 'T';
+        MarcaGuardado := True;
+        NaxAlbaran.Anade;
+      except
+        on E: Exception do
+        begin
+          if MarcaGuardado then
+            aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam('AC')] := 'F';
+          if Assigned(NaxAlbaran) and Preparado then
+            try NaxAlbaran.Cancela; except end;
+          MessageDlg('No se ha podido completar el servido del alternativo ' +
+            Trim(Grupos[I].CodAlternativo) + ' en el albaran ' + Num(IdAlbC) +
+            '.' + sLineBreak + E.Message + sLineBreak +
+            'Verifique las lineas antes de reintentar.', mtError, [mbOK], 0);
+        end;
+      end;
+      if Assigned(NaxAlbaran) and Preparado then
+        try NaxAlbaran.Acabar; except end;
+    end;
+  finally
+    QLineas.Free;
+    QGrupos.Free;
   end;
 end;
 

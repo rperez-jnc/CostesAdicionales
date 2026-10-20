@@ -7,6 +7,7 @@ Uses dmDatos, Dialogs,RowObject, JncLib, SysUtils,dxCore,dll_modelo, DatosIni, S
 
 procedure INICIAR(Empresa: PAnsiChar); stdcall;
 procedure FINALIZAR; stdcall;
+function ACTIVARMETODOSALSERVIR: Boolean; stdcall;
 procedure DESPUESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; Estado: integer); stdcall;
 function REPINTAR(Tabla: AnsiString): boolean; stdcall;
 function ANTESDEGUARDARDOCUMENTOV2(Documento: AnsiString; IdDoc: Double; var Cabecera: variant; var Lineas: variant;
@@ -22,6 +23,7 @@ var
   DatosIniAplicacion: TDatosIniAplicacion;
   CambiadoPrcMedio: boolean;
   NoModificarCostes : boolean;
+  ProcesandoAlternativos : boolean;
 
 implementation
 
@@ -34,6 +36,7 @@ begin
   bd.IniciaEnlace;
   CambiadoPrcMedio := False;
   NoModificarCostes := False;
+  ProcesandoAlternativos := False;
 end;
 
 procedure FINALIZAR; stdcall;
@@ -88,11 +91,35 @@ function ANTESDEGUARDARLINEAV2(Documento: AnsiString; Cabecera: variant; Linea: 
 var
   lPrcCoste : double;
   lCostes : string;
+  lcalcpaquetes, lCalcCostes:boolean;
+  li:integer;
+   lCodArt : string;
+  lPaquetes, lBultos: integer;
+  lUnidades: double;
 begin
     PermitirGuardar := true;
+    lcalcpaquetes := true;
+    lCalcCostes := true;
+     for lI := 0 to DatosIniAplicacion.UsuariosExcluidosPaquetesList.Count - 1 do
+        if (UPPERCASE(bd.NaxEnlace.Usuario)   = UPPERCASE(DatosIniAplicacion.UsuariosExcluidosPaquetesList[li])) then
+        begin
+            lcalcpaquetes := False;
 
+        end;
+     for lI := 0 to DatosIniAplicacion.UsuariosExcluidosCostesList.Count - 1 do
+        if (UPPERCASE(bd.NaxEnlace.Usuario)   = UPPERCASE(DatosIniAplicacion.UsuariosExcluidosCostesList[li])) then
+        begin
+            lCalcCostes := False;
 
-   if  ((Documento = 'AV') and (estado < 2) and (CambiadoPrcMedio) and not(NoModificarCostes)) then
+        end;
+   if lCalcPaquetes then
+   begin
+     lUnidades :=  TInternoDLL.GetValorCampoVarFloat(Linea, 'prcmedio');
+     lCodart := TInternoDLL.GetValorCampoVarStr(Linea, 'codart');
+     lPaquetes := Bd.CalcularPaquetesArticulo(lCodArt, lUnidades, Documento);
+     lBUltos := Bd.CalcularBultosArticulo(lCodArt, lCodart, Documento);
+   end;
+   if  ((Documento = 'AV') and (estado < 2) and (CambiadoPrcMedio) and not(NoModificarCostes) and (lCalcCostes)) then
    begin
 
       lPrcCoste := TInternoDLL.GetValorCampoVarFloat(Linea, 'prcmedio');
@@ -102,19 +129,53 @@ begin
          Exit;
       if lCostes = 'T' then //Si la linea la estan modificando los costes, no hay que guardar el coste en el campo auxiliar
       begin
-        result := varArrayCreate([0, 1], varVariant);
+        if lcalcpaquetes then
+        begin
+           result := varArrayCreate([0, 4], varVariant);
+           result[0] := 4;
+           result[1] := VarArrayOf(['SOL_MODCOSTESADICIONALES', 'F']);
+           result[2] := VarArrayOf(['BUltos',inttostr(lBultos) ]);
+           result[3] := VarArrayOf(['Paquetes',inttostr(lPaquetes) ]);
+           result[4] := VarArrayOf(['Unidades',inttostr(lUnidades) ]);
+
+        end
+        else
+        begin
+            result := varArrayCreate([0, 1], varVariant);
             result[0] := 1;
             result[1] := VarArrayOf(['SOL_MODCOSTESADICIONALES', 'F']);
+        end;
       end
       else
       begin
+          if lcalcpaquetes then
+        begin
+           result := varArrayCreate([0, 4], varVariant);
+           result[0] := 4;
+           result[1] := VarArrayOf(['SOL_COSTEANTERIOR', lPrcCoste]);
+           result[2] := VarArrayOf(['BUltos',inttostr(lBultos) ]);
+           result[3] := VarArrayOf(['Paquetes',inttostr(lPaquetes) ]);
+           result[4] := VarArrayOf(['Unidades',inttostr(lUnidades) ]);
 
-         result := varArrayCreate([0, 1], varVariant);
+        end
+        else
+        begin
+            result := varArrayCreate([0, 1], varVariant);
             result[0] := 1;
             result[1] := VarArrayOf(['SOL_COSTEANTERIOR', lPrcCoste]);
+        end;
 
       end;
       CambiadoPrcMedio := False;
+   end;
+
+   if  ((Documento = 'AC') and (estado < 2) and (lcalcpaquetes)) then
+   begin
+       result := varArrayCreate([0, 3], varVariant);
+       result[0] := 3;
+       result[1] := VarArrayOf(['BUltos',inttostr(lBultos) ]);
+       result[2] := VarArrayOf(['Paquetes',inttostr(lPaquetes) ]);
+       result[3] := VarArrayOf(['Unidades',inttostr(lUnidades) ]);
    end;
 end;
 
@@ -150,15 +211,47 @@ var
   lImporteCosteAdicionales: double;
   lNumUnidades : double;
   lCosteUnidad: double;
+  lCajas,  lCostes:boolean;
+  li:integer;
 begin
+
     if aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam(Documento)] = 'T' then
     BEGIN
          aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam(Documento)] := 'F';
     END
     ELSE
     BEGIN
+        lCajas := true;
+
+        lCostes := true;
+        for lI := 0 to DatosIniAplicacion.UsuariosExcluidosCajasList.Count - 1 do
+        if (UPPERCASE(bd.NaxEnlace.Usuario)   = UPPERCASE(DatosIniAplicacion.UsuariosExcluidosCajasList[li])) then
+        begin
+            lCajas := False;
+
+        end;
+
+        for lI := 0 to DatosIniAplicacion.UsuariosExcluidosCostesList.Count - 1 do
+        if (UPPERCASE(bd.NaxEnlace.Usuario)   = UPPERCASE(DatosIniAplicacion.UsuariosExcluidosCostesList[li])) then
+        begin
+            lCostes := False;
+
+        end;
+         // VENTAS: nueva regularizacion de cajas independiente de ventas.
+
+        if ((Documento = 'AV') and (Estado < 2) and (IdDoc > 0) and (lCajas) )then
+        begin
+          try
+            Bd.GenerarRegularizacionesAlternativosVenta(IdDoc);
+          except
+            on E: Exception do
+              MessageDlg('Regularizacion de cajas no completada: ' +
+                E.Message, mtError, [mbOK], 0);
+          end;
+        end;
+
          //ALBARANES
-        if ((Documento = 'AV') and (Estado < 2) and not (NoModificarCostes)) then
+        if ((Documento = 'AV') and (Estado < 2) and not (NoModificarCostes) and (lCostes)) then
         begin
            NoModificarCostes := Bd.BuscarParam(iddoc, DatosIniAplicacion.ParamNoModificarCostes);
            if NoModificarCostes  then
@@ -177,20 +270,53 @@ begin
            end
            else  //Si no hay lineas de coste, pongo los costes que devuelve Nax
            begin
-
-
              bd.ActualizaCosteLineas(IdDoc,0 ,DatosIniAplicacion.ModificarCostesManuales);
            end;
 
         end;
-        //Presupuesto 01/09/2026 . Descomentar si aprueban y sacar version
         if  ((Documento = 'AC') and (estado < 2)) then
-       begin
+        begin
             CalculoLotes(IdDoc);
-            
-       end;
+
+        end;
+        // SERVIDO AUTOMATICO DE ARTICULOS ALTERNATIVOS
+        // Solo al guardar o modificar albaranes de compra.
+        if (Documento = 'AC') and
+           ((Estado = 0) or (Estado = 1)) and
+           (IdDoc > 0) and
+           (not ProcesandoAlternativos) then
+        begin
+          if lCajas then
+          begin
+            ProcesandoAlternativos := True;
+            try
+              try
+                Bd.ProcesarAlternativosAlbaran(IdDoc);
+              except
+                on E: Exception do
+                  MessageDlg(
+                    'Error al servir articulos alternativos:' +
+                    sLineBreak + E.Message,
+                    mtError, [mbOK], 0
+                  );
+              end;
+            finally
+              ProcesandoAlternativos := False;
+            end;
+          end;
+        end;
+
+       
+
     END;
 end;
+
+function ACTIVARMETODOSALSERVIR: Boolean; stdcall;
+begin
+  Result := True;
+end;
+
+
 procedure CalculoLotes(vIdAlbc:double);
 var
   lLote : string;

@@ -1,0 +1,67 @@
+unit DatosIni;
+
+interface
+
+uses dll_fichIni, System.SysUtils, Dialogs, System.Classes;
+
+type
+   //Clase encargada de leer los datos de un fichero ini.
+  TDatosIniAplicacion = class(TDllDatosIni)
+  private
+    FModificarCostesManuales: boolean;
+    FParamNoModificarCostes: string;
+    FUsuariosExcluidosPaquetes: string;
+    FUsuariosExcluidosCajas: string;
+    FUsuariosExcluidosPaquetesList: TstringList;
+    FUsuariosExcluidosCajasList: TstringList;
+    FUsuariosExcluidosCostes: string;
+    FUsuariosExcluidosCostesList: TstringList;
+
+
+   public
+    procedure LeeIni; override;
+
+
+    property ModificarCostesManuales : boolean read  FModificarCostesManuales write FModificarCostesManuales;
+    property ParamNoModificarCostes : string read  FParamNoModificarCostes write FParamNoModificarCostes;
+    property UsuariosExcluidosCajas : string read  FUsuariosExcluidosCajas write FUsuariosExcluidosCajas;
+    property UsuariosExcluidosPaquetes : string read  FUsuariosExcluidosPaquetes write FUsuariosExcluidosPaquetes;
+    property UsuariosExcluidosCostes : string read  FUsuariosExcluidosCostes write FUsuariosExcluidosCostes;
+    property UsuariosExcluidosCajasList : TstringList read  FUsuariosExcluidosCajasList write FFUsuariosExcluidosCajasList;
+    property UsuariosExcluidosPaquetesList : TstringList read  FUsuariosExcluidosPaquetesList write FUsuariosExcluidosPaquetesList;
+    property UsuariosExcluidosCostesList : TstringList read  FUsuariosExcluidosCostesList write FUsuariosExcluidosCostesList;
+
+
+
+  end;
+
+implementation
+
+{ TDatosIniAplicacion }
+
+procedure TDatosIniAplicacion.LeeIni;
+begin
+  inherited;
+
+
+  ModificarCostesManuales:= FArchivoIni.ReadString('Configuracion', 'ModificarCostesManuales', 'F') = 'T';
+  ParamNoModificarCostes := FArchivoIni.ReadString('Configuracion', 'ParamNoModificarCostes', 'Param1');
+  UsuariosExcluidosCajas := FArchivoIni.ReadString('Configuracion', 'UsuariosExcluidosCajas', '');
+  UsuariosExcluidosPaquetes := FArchivoIni.ReadString('Configuracion', 'UsuariosExcluidosPaquetes', '');
+  UsuariosExcluidosCostes := FArchivoIni.ReadString('Configuracion', 'UsuariosExcluidosCostes', '');
+
+
+  UsuariosExcluidosCajasList:= TStringList.Create;
+  UsuariosExcluidosCajasList.Delimiter := ',';
+  UsuariosExcluidosCajasList.DelimitedText := UsuariosExcluidosCajas;
+
+  UsuariosExcluidosPaquetesList:= TStringList.Create;
+  UsuariosExcluidosPaquetesList.Delimiter := ',';
+  UsuariosExcluidosPaquetesList.DelimitedText := UsuariosExcluidosPaquetes;
+
+  UsuariosExcluidosCostesList:= TStringList.Create;
+  UsuariosExcluidosCostesList.Delimiter := ',';
+  UsuariosExcluidosCostesList.DelimitedText := UsuariosExcluidosCostes;
+end;
+
+end.
