@@ -122,15 +122,18 @@ begin
    if  ((Documento = 'AV') and (estado < 2) and (CambiadoPrcMedio) and not(NoModificarCostes) and (lCalcCostes)) then
    begin
 
-      lPrcCoste := TInternoDLL.GetValorCampoVarFloat(Linea, 'prcmedio');
+      lPrcCoste := ifnull(TInternoDLL.GetValorCampoVarFloat(Linea, 'prcmedio'),0);
+
       lCostes := ifnull(TInternoDLL.GetValorCampoVarStr(Linea, 'SOL_MODCOSTESADICIONALES'),'F');
       NoModificarCostes := ifnull(TInternoDLL.GetValorCampoVarStr(Cabecera, DatosIniAplicacion.ParamNoModificarCostes),'F')= 'T';
       if NoModificarCostes then
          Exit;
       if lCostes = 'T' then //Si la linea la estan modificando los costes, no hay que guardar el coste en el campo auxiliar
       begin
+
         if lcalcpaquetes then
         begin
+
            result := varArrayCreate([0, 4], varVariant);
            result[0] := 4;
            result[1] := VarArrayOf(['SOL_MODCOSTESADICIONALES', 'F']);
@@ -141,15 +144,18 @@ begin
         end
         else
         begin
+
             result := varArrayCreate([0, 1], varVariant);
             result[0] := 1;
             result[1] := VarArrayOf(['SOL_MODCOSTESADICIONALES', 'F']);
+
         end;
       end
       else
       begin
           if lcalcpaquetes then
         begin
+
            result := varArrayCreate([0, 4], varVariant);
            result[0] := 4;
            result[1] := VarArrayOf(['SOL_COSTEANTERIOR', lPrcCoste]);
@@ -157,12 +163,15 @@ begin
            result[3] := VarArrayOf(['Paquetes',inttostr(lPaquetes) ]);
            result[4] := VarArrayOf(['Unidades',floattostr(lUnidades) ]);
 
+
         end
         else
         begin
+
             result := varArrayCreate([0, 1], varVariant);
             result[0] := 1;
             result[1] := VarArrayOf(['SOL_COSTEANTERIOR', lPrcCoste]);
+
         end;
 
       end;
@@ -211,7 +220,7 @@ var
   lImporteCosteAdicionales: double;
   lNumUnidades : double;
   lCosteUnidad: double;
-  lCajas,  lCostes:boolean;
+  lCajas,  lCostes, lLotes:boolean;
   li:integer;
 begin
 
@@ -222,7 +231,7 @@ begin
     ELSE
     BEGIN
         lCajas := true;
-
+        lLotes := true;
         lCostes := true;
         for lI := 0 to DatosIniAplicacion.UsuariosExcluidosCajasList.Count - 1 do
         if (UPPERCASE(bd.NaxEnlace.Usuario)   = UPPERCASE(DatosIniAplicacion.UsuariosExcluidosCajasList[li])) then
@@ -235,6 +244,12 @@ begin
         if (UPPERCASE(bd.NaxEnlace.Usuario)   = UPPERCASE(DatosIniAplicacion.UsuariosExcluidosCostesList[li])) then
         begin
             lCostes := False;
+
+        end;
+        for lI := 0 to DatosIniAplicacion.UsuariosExcluidosLotesList.Count - 1 do
+        if (UPPERCASE(bd.NaxEnlace.Usuario)   = UPPERCASE(DatosIniAplicacion.UsuariosExcluidosLotesList[li])) then
+        begin
+            lLotes := False;
 
         end;
          // VENTAS: nueva regularizacion de cajas independiente de ventas.
@@ -253,6 +268,7 @@ begin
          //ALBARANES
         if ((Documento = 'AV') and (Estado < 2) and not (NoModificarCostes) and (lCostes)) then
         begin
+
            NoModificarCostes := Bd.BuscarParam(iddoc, DatosIniAplicacion.ParamNoModificarCostes);
            if NoModificarCostes  then
              exit;
@@ -270,14 +286,19 @@ begin
            end
            else  //Si no hay lineas de coste, pongo los costes que devuelve Nax
            begin
+
              bd.ActualizaCosteLineas(IdDoc,0 ,DatosIniAplicacion.ModificarCostesManuales);
+
            end;
 
         end;
-        if  ((Documento = 'AC') and (estado < 2)) then
+        if lLotes then
         begin
-            CalculoLotes(IdDoc);
+            if  ((Documento = 'AC') and (estado < 2)) then
+            begin
+                CalculoLotes(IdDoc);
 
+            end;
         end;
         // SERVIDO AUTOMATICO DE ARTICULOS ALTERNATIVOS
         // Solo al guardar o modificar albaranes de compra.

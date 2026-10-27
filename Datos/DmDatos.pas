@@ -48,13 +48,15 @@ var
   lObtPrcCoste : string;
   lNUmLin : double;
   lCodArt, lCodAlm : string;
-  lPrcCoste : double;
+  lPrcCoste, lPrcCosteNew : double;
 begin
 
   Naxvarios := coVarios.Create;
   NaxAlbaran := coAlbaran.Create;
   NaxAlbaran.Iniciar;
+
   NaxAlbaran.Modifica(vIdAlbv, False);
+  NaxAlbaran.OmitirMensajes := True;
 
   with query do
   begin
@@ -81,7 +83,7 @@ begin
       lObtPrcCoste :=NaxAlbaran.AsStringLin['ObtPrcCoste'];
       lCodAlm := Fieldbyname('CodAlm').AsString;
       lCodArt := Fieldbyname('CodArt').AsString;
-     
+
 
       if ((uppercase(lObtPrcCoste) <> 'MANU') or (vModificarCostesManuales)) then
       begin
@@ -92,32 +94,37 @@ begin
          if ((vCosteUnidad = 0) and  (lPrcCoste = 0) and (uppercase(lObtPrcCoste) <> 'MANU')) then
          begin
 
-              lPrcCoste := NaxVarios.ObtPrecioCoste(lCodArt,lCodAlm,lObtPrcCoste);
+              lPrcCoste := ifnull(NaxVarios.ObtPrecioCoste(lCodArt,lCodAlm,lObtPrcCoste),0);
 
-              NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste +  vCosteUnidad;
+
+              lPrcCosteNew := lPrcCoste +  vCosteUnidad;
+
+              NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCosteNew;
+
               NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
+
          end
          else
          if ((vCosteUnidad <> 0) and  (lPrcCoste = 0) and (uppercase(lObtPrcCoste) <> 'MANU')) then
          begin
 
-              lPrcCoste := NaxVarios.ObtPrecioCoste(lCodArt,lCodAlm,lObtPrcCoste);
+              lPrcCoste := ifnull(NaxVarios.ObtPrecioCoste(lCodArt,lCodAlm,lObtPrcCoste),0);
 
-              NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste +  vCosteUnidad;
+              NaxAlbaran.AsFloatLin['PrcMedio'] := ifnull(lPrcCoste +  vCosteUnidad,0);
               NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
          end
          else
          if uppercase(lObtPrcCoste) <> 'MANU' then
          begin
 
-              NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste +  vCosteUnidad;
+              NaxAlbaran.AsFloatLin['PrcMedio'] := ifnull(lPrcCoste +  vCosteUnidad,0);
               NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
          end
          else
          if ((uppercase(lObtPrcCoste) = 'MANU')  and (lPrcCoste <> 0)) then
          begin
 
-            NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste + vCosteUnidad ;
+            NaxAlbaran.AsFloatLin['PrcMedio'] := ifnull(lPrcCoste + vCosteUnidad,0);
             NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
          end
          else
@@ -125,20 +132,23 @@ begin
 
             lPrcCoste := NaxAlbaran.AsFloatLin['PrcMedio'];
            
-            NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCoste + vCosteUnidad ;
+            NaxAlbaran.AsFloatLin['PrcMedio'] := ifnull(lPrcCoste + vCosteUnidad,0) ;
             NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
          end;
 
 
       end;
+
       NaxAlbaran.AnadirLinea;
 
       next;
     end;
 
   end;
+
   aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam('AV')] := 'T';
   NaxAlbaran.Anade;
+
   NaxAlbaran.Acabar;
 end;
 
@@ -494,12 +504,12 @@ begin
           QAux.Connection.RollbackTrans;
           raise;
         end;
-        if Existe then
+        {if Existe then
           Avisos := Avisos+'Regularizacion '+BuscarNumeroDocumento(IdReg,'RE')+
-            ' modificada (almacen '+Trim(Alm)+').' + sLineBreak
+            ' modificada .' + sLineBreak
         else
           Avisos := Avisos+'Regularizacion '+BuscarNumeroDocumento(IdReg,'RE')+
-            ' creada (almacen '+Trim(Alm)+').' + sLineBreak;
+            ' creada .' + sLineBreak; }
       except
         on E: Exception do
         begin
@@ -603,6 +613,7 @@ end;
 
 
 // NUEVO: trabaja sobre un AV ya confirmado. Nunca ejecuta UPDATE de documentos.
+
 procedure TdmdDatos.ProcesarAlternativosAlbaran(const IdAlbC: Double);
 type
   TGrupo = record
@@ -611,10 +622,12 @@ type
     Necesarias: Double;
     YaEnAlbaran: Double;
   end;
+
   TLineaPlan = record
     NumLinPed: Double;
     Cantidad: Double;
   end;
+
 var
   QGrupos, QLineas: TADOQuery;
   Grupos: array of TGrupo;
@@ -624,21 +637,29 @@ var
   Necesarias, Disponibles, Restantes, Pend, Cantidad: Double;
   Preparado, MarcaGuardado: Boolean;
   Aviso: string;
+
   function Num(const Valor: Double): string;
   begin
     Result := FormatFloat('0.######', Valor);
   end;
+
 begin
   if IdAlbC <= 0 then Exit;
+
   QGrupos := TADOQuery.Create(nil);
   QLineas := TADOQuery.Create(nil);
+
   try
     QGrupos.Connection := query.Connection;
     QLineas.Connection := query.Connection;
+
+    // Calculamos las cajas necesarias como magnitud positiva.
+    // Las cajas ya servidas aparecen con unidades negativas,
+    // por lo que invertimos su signo para descontarlas.
     QGrupos.SQL.Text :=
       'SELECT L.IDPEDC, A.CODARTALT, ' +
       ' CEILING(SUM(L.UNIDADES / A.UNIPAQC)) AS NECESARIAS, ' +
-      ' (SELECT COALESCE(SUM(X.UNIDADES),0) FROM LINEALBA X ' +
+      ' (SELECT -COALESCE(SUM(X.UNIDADES),0) FROM LINEALBA X ' +
       '   WHERE X.IDALBC = :ALB2 AND X.IDPEDC = L.IDPEDC ' +
       '     AND X.CODART = A.CODARTALT) AS YA_EN_ALBARAN ' +
       'FROM LINEALBA L INNER JOIN ARTICULO A ON A.CODART = L.CODART ' +
@@ -647,62 +668,115 @@ begin
       ' AND L.UNIDADES > 0 ' +
       ' AND A.UNIPAQC > 0 ' +
       'GROUP BY L.IDPEDC, A.CODARTALT';
+
     QGrupos.Parameters.ParamByName('ALB').Value := IdAlbC;
     QGrupos.Parameters.ParamByName('ALB2').Value := IdAlbC;
     QGrupos.Open;
+
     while not QGrupos.Eof do
     begin
       N := Length(Grupos);
-      SetLength(Grupos, N+1);
-      Grupos[N].IdPedC := QGrupos.FieldByName('IDPEDC').AsFloat;
-      Grupos[N].CodAlternativo := QGrupos.FieldByName('CODARTALT').AsString;
-      Grupos[N].Necesarias := QGrupos.FieldByName('NECESARIAS').AsFloat;
-      Grupos[N].YaEnAlbaran := QGrupos.FieldByName('YA_EN_ALBARAN').AsFloat;
+      SetLength(Grupos, N + 1);
+
+      Grupos[N].IdPedC :=
+        QGrupos.FieldByName('IDPEDC').AsFloat;
+
+      Grupos[N].CodAlternativo :=
+        QGrupos.FieldByName('CODARTALT').AsString;
+
+      Grupos[N].Necesarias :=
+        QGrupos.FieldByName('NECESARIAS').AsFloat;
+
+      Grupos[N].YaEnAlbaran :=
+        QGrupos.FieldByName('YA_EN_ALBARAN').AsFloat;
+
       QGrupos.Next;
     end;
+
     QGrupos.Close;
 
     for I := 0 to High(Grupos) do
     begin
-      Necesarias := Grupos[I].Necesarias - Grupos[I].YaEnAlbaran;
+      // Ambas cantidades son magnitudes positivas.
+      // Restamos las cajas negativas ya servidas.
+      Necesarias :=
+        Grupos[I].Necesarias - Grupos[I].YaEnAlbaran;
+
       if Necesarias <= 0.000001 then Continue;
       if Grupos[I].Necesarias <= 0 then Continue;
 
       QLineas.Close;
+
+      // CAMBIO: buscamos pendientes NEGATIVOS.
+      // Los convertimos a magnitud positiva para
+      // calcular cuantas cajas podemos servir.
       QLineas.SQL.Text :=
         'SELECT NUMLINPED, ' +
-        ' (UNIDADES-COALESCE(UNISERVIDA,0)-COALESCE(UNIANULADA,0)) AS PENDIENTES ' +
+        ' -(UNIDADES-COALESCE(UNISERVIDA,0)-COALESCE(UNIANULADA,0)) AS PENDIENTES ' +
         'FROM LINEPEDI WHERE IDPEDC = :PED AND CODART = :ART ' +
-        ' AND UNIDADES-COALESCE(UNISERVIDA,0)-COALESCE(UNIANULADA,0) > 0 ' +
+        ' AND UNIDADES-COALESCE(UNISERVIDA,0)-COALESCE(UNIANULADA,0) < 0 ' +
         'ORDER BY NUMLINPED';
-      QLineas.Parameters.ParamByName('PED').Value := Grupos[I].IdPedC;
-      QLineas.Parameters.ParamByName('ART').Value := Grupos[I].CodAlternativo;
+
+      QLineas.Parameters.ParamByName('PED').Value :=
+        Grupos[I].IdPedC;
+
+      QLineas.Parameters.ParamByName('ART').Value :=
+        Grupos[I].CodAlternativo;
+
       QLineas.Open;
-      SetLength(Plan,0);
+
+      SetLength(Plan, 0);
       Restantes := Necesarias;
       Disponibles := 0;
+
       while not QLineas.Eof do
       begin
+        // Pend es positivo, aunque la linea del pedido
+        // tenga las unidades en negativo.
         Pend := QLineas.FieldByName('PENDIENTES').AsFloat;
+
         Disponibles := Disponibles + Pend;
+
         if (Restantes > 0.000001) and (Pend > 0) then
         begin
-          if Pend < Restantes then Cantidad := Pend else Cantidad := Restantes;
+          if Pend < Restantes then
+            Cantidad := Pend
+          else
+            Cantidad := Restantes;
+
           N := Length(Plan);
-          SetLength(Plan,N+1);
-          Plan[N].NumLinPed := QLineas.FieldByName('NUMLINPED').AsFloat;
-          Plan[N].Cantidad := Cantidad;
+          SetLength(Plan, N + 1);
+
+          Plan[N].NumLinPed :=
+            QLineas.FieldByName('NUMLINPED').AsFloat;
+
+          // CAMBIO: guardamos cantidad NEGATIVA
+          // para servirla con el signo del pedido.
+          Plan[N].Cantidad := -Cantidad;
+
           Restantes := Restantes - Cantidad;
         end;
+
         QLineas.Next;
       end;
+
       QLineas.Close;
+
+      // Conservamos la validacion original:
+      // no servir parcialmente si faltan cajas.
       if Restantes > 0.000001 then
       begin
-        Aviso := 'No se puede servir el articulo alternativo ' +
-          Trim(Grupos[I].CodAlternativo) + ' del pedido ' + Num(Grupos[I].IdPedC) + '.' + sLineBreak +
-          'Necesarias: ' + Num(Necesarias) + '. Pendientes: ' + Num(Disponibles) + '.' + sLineBreak +
-          'El albaran principal se conserva y NO se sirve ninguna linea del alternativo.';
+        Aviso :=
+          'No se puede servir el articulo alternativo ' +
+          Trim(Grupos[I].CodAlternativo) +
+          ' del pedido ' + Num(Grupos[I].IdPedC) + '.' +
+          sLineBreak +
+          'Necesarias: ' + Num(Necesarias) +
+          '. Pendientes: ' + Num(Disponibles) + '.' +
+          sLineBreak +
+          'El albaran principal se conserva y NO se sirve ' +
+          'ninguna linea del alternativo.';
+
         MessageDlg(Aviso, mtWarning, [mbOK], 0);
         Continue;
       end;
@@ -710,40 +784,88 @@ begin
       NaxAlbaran := nil;
       Preparado := False;
       MarcaGuardado := False;
+
       try
         NaxAlbaran := CoAlbaran.Create;
         NaxAlbaran.Iniciar;
         Preparado := True;
+
         NaxAlbaran.Modifica(IdAlbC, True);
-        NaxAlbaran.IniciarServir('P', Grupos[I].IdPedC, False);
+
+        NaxAlbaran.IniciarServir(
+          'P', Grupos[I].IdPedC, False
+        );
+
         for J := 0 to High(Plan) do
-          NaxAlbaran.ServirLinea(0, Plan[J].NumLinPed, 0, 0,
-            Plan[J].Cantidad, 0, '', '', '', '');
+        begin
+          // CAMBIO: la cantidad enviada es NEGATIVA.
+          NaxAlbaran.ServirLinea(
+            0,
+            Plan[J].NumLinPed,
+            0,
+            0,
+            Plan[J].Cantidad,
+            0,
+            '',
+            '',
+            '',
+            ''
+          );
+        end;
+
         NaxAlbaran.FinServir;
-        // MISMO patron de recursividad que ActualizaCosteLineas.
-        aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam('AC')] := 'T';
+
+        // Mismo patron de recursividad
+        // que ActualizaCosteLineas.
+        aGuardadoPorDll[
+          TTablaA3.tipoDocumentoPorParam('AC')
+        ] := 'T';
+
         MarcaGuardado := True;
+
         NaxAlbaran.Anade;
+
       except
         on E: Exception do
         begin
           if MarcaGuardado then
-            aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam('AC')] := 'F';
+            aGuardadoPorDll[
+              TTablaA3.tipoDocumentoPorParam('AC')
+            ] := 'F';
+
           if Assigned(NaxAlbaran) and Preparado then
-            try NaxAlbaran.Cancela; except end;
-          MessageDlg('No se ha podido completar el servido del alternativo ' +
-            Trim(Grupos[I].CodAlternativo) + ' en el albaran ' + Num(IdAlbC) +
-            '.' + sLineBreak + E.Message + sLineBreak +
-            'Verifique las lineas antes de reintentar.', mtError, [mbOK], 0);
+            try
+              NaxAlbaran.Cancela;
+            except
+            end;
+
+          MessageDlg(
+            'No se ha podido completar el servido del alternativo ' +
+            Trim(Grupos[I].CodAlternativo) +
+            ' en el albaran ' + Num(IdAlbC) + '.' +
+            sLineBreak +
+            E.Message +
+            sLineBreak +
+            'Verifique las lineas antes de reintentar.',
+            mtError,
+            [mbOK],
+            0
+          );
         end;
       end;
+
       if Assigned(NaxAlbaran) and Preparado then
-        try NaxAlbaran.Acabar; except end;
+        try
+          NaxAlbaran.Acabar;
+        except
+        end;
     end;
+
   finally
     QLineas.Free;
     QGrupos.Free;
   end;
 end;
+
 
 end.

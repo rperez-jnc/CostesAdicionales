@@ -16,6 +16,8 @@ type
     FUsuariosExcluidosCajasList: TstringList;
     FUsuariosExcluidosCostes: string;
     FUsuariosExcluidosCostesList: TstringList;
+    FUsuariosExcluidosLotes: string;
+    FUsuariosExcluidosLotesList: TstringList;
 
 
    public
@@ -27,9 +29,12 @@ type
     property UsuariosExcluidosCajas : string read  FUsuariosExcluidosCajas write FUsuariosExcluidosCajas;
     property UsuariosExcluidosPaquetes : string read  FUsuariosExcluidosPaquetes write FUsuariosExcluidosPaquetes;
     property UsuariosExcluidosCostes : string read  FUsuariosExcluidosCostes write FUsuariosExcluidosCostes;
+    property UsuariosExcluidosLotes : string read  FUsuariosExcluidosLotes write FUsuariosExcluidosLotes;
+
     property UsuariosExcluidosCajasList : TstringList read  FUsuariosExcluidosCajasList write FUsuariosExcluidosCajasList;
     property UsuariosExcluidosPaquetesList : TstringList read  FUsuariosExcluidosPaquetesList write FUsuariosExcluidosPaquetesList;
     property UsuariosExcluidosCostesList : TstringList read  FUsuariosExcluidosCostesList write FUsuariosExcluidosCostesList;
+    property UsuariosExcluidosLotesList : TstringList read  FUsuariosExcluidosLotesList write FUsuariosExcluidosLotesList;
 
 
 
@@ -49,6 +54,7 @@ begin
   UsuariosExcluidosCajas := FArchivoIni.ReadString('Configuracion', 'UsuariosExcluidosCajas', '');
   UsuariosExcluidosPaquetes := FArchivoIni.ReadString('Configuracion', 'UsuariosExcluidosPaquetes', '');
   UsuariosExcluidosCostes := FArchivoIni.ReadString('Configuracion', 'UsuariosExcluidosCostes', '');
+  UsuariosExcluidosLotes := FArchivoIni.ReadString('Configuracion', 'UsuariosExcluidosLotes', '');
 
 
   UsuariosExcluidosCajasList:= TStringList.Create;
@@ -62,6 +68,10 @@ begin
   UsuariosExcluidosCostesList:= TStringList.Create;
   UsuariosExcluidosCostesList.Delimiter := ',';
   UsuariosExcluidosCostesList.DelimitedText := UsuariosExcluidosCostes;
+
+  UsuariosExcluidosLotesList:= TStringList.Create;
+  UsuariosExcluidosLotesList.Delimiter := ',';
+  UsuariosExcluidosLotesList.DelimitedText := UsuariosExcluidosLotes;
 end;
 
 end.
