@@ -114,10 +114,12 @@ begin
         end;
    if lCalcPaquetes then
    begin
+
      lUnidades :=  TInternoDLL.GetValorCampoVarFloat(Linea, 'unidades');
      lCodart := TInternoDLL.GetValorCampoVarStr(Linea, 'codart');
      lPaquetes := Bd.CalcularPaquetesArticulo(lCodArt, lUnidades, Documento);
      lBUltos := Bd.CalcularBultosArticulo(lCodArt, lPaquetes, Documento);
+
    end;
    if  ((Documento = 'AV') and (estado < 2) and (CambiadoPrcMedio) and not(NoModificarCostes) and (lCalcCostes)) then
    begin
@@ -127,7 +129,19 @@ begin
       lCostes := ifnull(TInternoDLL.GetValorCampoVarStr(Linea, 'SOL_MODCOSTESADICIONALES'),'F');
       NoModificarCostes := ifnull(TInternoDLL.GetValorCampoVarStr(Cabecera, DatosIniAplicacion.ParamNoModificarCostes),'F')= 'T';
       if NoModificarCostes then
+      begin
+         if lcalcpaquetes then
+          begin
+
+             result := varArrayCreate([0, 3], varVariant);
+             result[0] := 3;
+             result[1] := VarArrayOf(['BUltos',inttostr(lBultos) ]);
+             result[2] := VarArrayOf(['Paquetes',inttostr(lPaquetes) ]);
+             result[3] := VarArrayOf(['Unidades',floattostr(lUnidades) ]);
+
+          end;
          Exit;
+      end;
       if lCostes = 'T' then //Si la linea la estan modificando los costes, no hay que guardar el coste en el campo auxiliar
       begin
 
@@ -176,6 +190,19 @@ begin
 
       end;
       CambiadoPrcMedio := False;
+   end
+   else
+   begin
+     if lcalcpaquetes then
+          begin
+
+             result := varArrayCreate([0, 3], varVariant);
+             result[0] := 3;
+             result[1] := VarArrayOf(['BUltos',inttostr(lBultos) ]);
+             result[2] := VarArrayOf(['Paquetes',inttostr(lPaquetes) ]);
+             result[3] := VarArrayOf(['Unidades',floattostr(lUnidades) ]);
+
+          end;
    end;
 
    if  ((Documento = 'AC') and (estado < 2) and (lcalcpaquetes)) then
@@ -257,7 +284,7 @@ begin
         if ((Documento = 'AV') and (Estado < 2) and (IdDoc > 0) and (lCajas) )then
         begin
           try
-            Bd.GenerarRegularizacionesAlternativosVenta(IdDoc);
+            Bd.GenerarRegularizacionesAlternativosVenta(IdDoc, DatosIniAplicacion.ArticulosExcluidosCajasList);
           except
             on E: Exception do
               MessageDlg('Regularizacion de cajas no completada: ' +
@@ -312,7 +339,7 @@ begin
             ProcesandoAlternativos := True;
             try
               try
-                Bd.ProcesarAlternativosAlbaran(IdDoc);
+                Bd.ProcesarAlternativosAlbaran(IdDoc,DatosIniAplicacion.ArticulosExcluidosCajasList);
               except
                 on E: Exception do
                   MessageDlg(
@@ -383,7 +410,7 @@ begin
      sql.Add('Update linealba set lote = :PLOTE');
      sql.Add(' where idlin in (' + lineasModificar + ')');
 
-     Parameters.ParamByName('PLOTE').Value := lLote;
+     Parameters.ParamByName('PLOTE').Value := cuadrasiesnumerico(lLote,25);
 
      ExecSQL;
   end;

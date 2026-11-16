@@ -9,6 +9,7 @@ uses
 type
   TdmdDatos = class(TdmDLL)
     qLineasLote: TADOQuery;
+    qLineasCoste: TADOQuery;
   private
     { Private declarations }
   public
@@ -56,8 +57,9 @@ begin
   NaxAlbaran.Iniciar;
 
   NaxAlbaran.Modifica(vIdAlbv, False);
+  NaxAlbaran.OmitirMensajes := True;
 
-  with query do
+  with qLineasCoste do
   begin
     close;
     sql.Clear;
@@ -88,47 +90,47 @@ begin
       begin
 
         lPrcCoste := ifnull(NaxAlbaran.AsFloatLin['SOL_COSTEANTERIOR'],0);
-        showmessage('1i : ' + floattostr(lPrcCoste));
+
          //lPrcCoste := NaxVarios.ObtPrecioMedio(lCodArt,lCodAlm);
          if ((vCosteUnidad = 0) and  (lPrcCoste = 0) and (uppercase(lObtPrcCoste) <> 'MANU')) then
          begin
 
               lPrcCoste := ifnull(NaxVarios.ObtPrecioCoste(lCodArt,lCodAlm,lObtPrcCoste),0);
-              showmessage('a');
-              showmessage('coste unidad: ' + floattostr(vCosteUnidad));
+
+
               lPrcCosteNew := lPrcCoste +  vCosteUnidad;
-              showmessage('lPrcCosteNew : ' + floattostr(lPrcCosteNew));
+
               NaxAlbaran.AsFloatLin['PrcMedio'] := lPrcCosteNew;
-              showmessage('c');
+
               NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
-              showmessage('b');
+
          end
          else
          if ((vCosteUnidad <> 0) and  (lPrcCoste = 0) and (uppercase(lObtPrcCoste) <> 'MANU')) then
          begin
 
               lPrcCoste := ifnull(NaxVarios.ObtPrecioCoste(lCodArt,lCodAlm,lObtPrcCoste),0);
-              showmessage('b');
+
               NaxAlbaran.AsFloatLin['PrcMedio'] := ifnull(lPrcCoste +  vCosteUnidad,0);
               NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
          end
          else
          if uppercase(lObtPrcCoste) <> 'MANU' then
          begin
-              showmessage('c');
+
               NaxAlbaran.AsFloatLin['PrcMedio'] := ifnull(lPrcCoste +  vCosteUnidad,0);
               NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
          end
          else
          if ((uppercase(lObtPrcCoste) = 'MANU')  and (lPrcCoste <> 0)) then
          begin
-            showmessage('d');
+
             NaxAlbaran.AsFloatLin['PrcMedio'] := ifnull(lPrcCoste + vCosteUnidad,0);
             NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
          end
          else
          begin
-            showmessage('e');
+
             lPrcCoste := NaxAlbaran.AsFloatLin['PrcMedio'];
            
             NaxAlbaran.AsFloatLin['PrcMedio'] := ifnull(lPrcCoste + vCosteUnidad,0) ;
@@ -137,17 +139,18 @@ begin
 
 
       end;
-      showmessage('1j');
+
       NaxAlbaran.AnadirLinea;
 
       next;
+      lNumlin :=fieldbyname('numlinalb').AsFloat;
     end;
 
   end;
-  showmessage('1k');
+
   aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam('AV')] := 'T';
   NaxAlbaran.Anade;
-  showmessage('1l');
+
   NaxAlbaran.Acabar;
 end;
 
@@ -477,6 +480,7 @@ begin
         end
         else
           Reg.Nuevo(FormatDateTime('dd/mm/yyyy',Date),Alm);
+          Reg.AsStringCab['Motivo'] := 'REGULARIZACIÓN hecha por el albarán ' + BuscarNumeroDocumento(IdAlbv,'AV') ;
 
         for K := 0 to High(Deseadas) do
           if Deseadas[K].CodAlm=Alm then
@@ -655,7 +659,7 @@ begin
     // Calculamos las cajas necesarias como magnitud positiva.
     // Las cajas ya servidas aparecen con unidades negativas,
     // por lo que invertimos su signo para descontarlas.
-    QGrupos.SQL.Text :=
+   { QGrupos.SQL.Text :=
       'SELECT L.IDPEDC, A.CODARTALT, ' +
       ' CEILING(SUM(L.UNIDADES / A.UNIPAQC)) AS NECESARIAS, ' +
       ' (SELECT -COALESCE(SUM(X.UNIDADES),0) FROM LINEALBA X ' +
@@ -666,7 +670,20 @@ begin
       ' AND NULLIF(LTRIM(RTRIM(A.CODARTALT)), '''') IS NOT NULL ' +
       ' AND L.UNIDADES > 0 ' +
       ' AND A.UNIPAQC > 0 ' +
-      'GROUP BY L.IDPEDC, A.CODARTALT';
+      'GROUP BY L.IDPEDC, A.CODARTALT';      }
+
+       QGrupos.SQL.Text :=
+      'SELECT L.IDPEDC, A.CODARTALT, ' +
+      ' CEILING(L.UNIDADES / A.UNIPAQC) AS NECESARIAS, ' +
+      ' (SELECT -COALESCE(X.UNIDADES,0) FROM LINEALBA X ' +
+      '   WHERE X.IDALBC = :ALB2 AND X.IDPEDC = L.IDPEDC ' +
+      '     AND X.CODART = A.CODARTALT) AS YA_EN_ALBARAN ' +
+      'FROM LINEALBA L INNER JOIN ARTICULO A ON A.CODART = L.CODART ' +
+      'WHERE L.IDALBC = :ALB AND L.IDPEDC IS NOT NULL ' +
+      ' AND NULLIF(LTRIM(RTRIM(A.CODARTALT)), '''') IS NOT NULL ' +
+      ' AND L.UNIDADES > 0 ' +
+      ' AND A.UNIPAQC > 0 ';
+  
 
     QGrupos.Parameters.ParamByName('ALB').Value := IdAlbC;
     QGrupos.Parameters.ParamByName('ALB2').Value := IdAlbC;
@@ -699,7 +716,7 @@ begin
       // Ambas cantidades son magnitudes positivas.
       // Restamos las cajas negativas ya servidas.
       Necesarias :=
-        Grupos[I].Necesarias - Grupos[I].YaEnAlbaran;
+        Grupos[I].Necesarias ; //- Grupos[I].YaEnAlbaran;
 
       if Necesarias <= 0.000001 then Continue;
       if Grupos[I].Necesarias <= 0 then Continue;
@@ -710,8 +727,8 @@ begin
       // Los convertimos a magnitud positiva para
       // calcular cuantas cajas podemos servir.
       QLineas.SQL.Text :=
-        'SELECT NUMLINPED, ' +
-        ' -(UNIDADES-COALESCE(UNISERVIDA,0)-COALESCE(UNIANULADA,0)) AS PENDIENTES ' +
+        'SELECT top 1 NUMLINPED, ' +
+        ' (UNIDADES-COALESCE(UNISERVIDA,0)-COALESCE(UNIANULADA,0)) AS PENDIENTES ' +
         'FROM LINEPEDI WHERE IDPEDC = :PED AND CODART = :ART ' +
         ' AND UNIDADES-COALESCE(UNISERVIDA,0)-COALESCE(UNIANULADA,0) < 0 ' +
         'ORDER BY NUMLINPED';
@@ -725,23 +742,13 @@ begin
       QLineas.Open;
 
       SetLength(Plan, 0);
-      Restantes := Necesarias;
-      Disponibles := 0;
 
-      while not QLineas.Eof do
-      begin
-        // Pend es positivo, aunque la linea del pedido
-        // tenga las unidades en negativo.
-        Pend := QLineas.FieldByName('PENDIENTES').AsFloat;
+      Cantidad := Necesarias;
 
-        Disponibles := Disponibles + Pend;
+      //Solo la primera. Una caja por cada linea
+     // while not QLineas.Eof do
+     // begin
 
-        if (Restantes > 0.000001) and (Pend > 0) then
-        begin
-          if Pend < Restantes then
-            Cantidad := Pend
-          else
-            Cantidad := Restantes;
 
           N := Length(Plan);
           SetLength(Plan, N + 1);
@@ -751,43 +758,20 @@ begin
 
           // CAMBIO: guardamos cantidad NEGATIVA
           // para servirla con el signo del pedido.
-          Plan[N].Cantidad := -Cantidad;
+          Plan[N].Cantidad := - Cantidad;
 
-          Restantes := Restantes - Cantidad;
-        end;
-
-        QLineas.Next;
-      end;
+   //     QLineas.Next;
+   //   end;
 
       QLineas.Close;
 
-      // Conservamos la validacion original:
-      // no servir parcialmente si faltan cajas.
-      if Restantes > 0.000001 then
-      begin
-        Aviso :=
-          'No se puede servir el articulo alternativo ' +
-          Trim(Grupos[I].CodAlternativo) +
-          ' del pedido ' + Num(Grupos[I].IdPedC) + '.' +
-          sLineBreak +
-          'Necesarias: ' + Num(Necesarias) +
-          '. Pendientes: ' + Num(Disponibles) + '.' +
-          sLineBreak +
-          'El albaran principal se conserva y NO se sirve ' +
-          'ninguna linea del alternativo.';
 
-        MessageDlg(Aviso, mtWarning, [mbOK], 0);
-        Continue;
-      end;
-
-      NaxAlbaran := nil;
-      Preparado := False;
       MarcaGuardado := False;
 
       try
         NaxAlbaran := CoAlbaran.Create;
         NaxAlbaran.Iniciar;
-        Preparado := True;
+
 
         NaxAlbaran.Modifica(IdAlbC, True);
 
@@ -839,13 +823,13 @@ begin
             end;
 
           MessageDlg(
-            'No se ha podido completar el servido del alternativo ' +
+            {'No se ha podido completar el servido del alternativo ' +
             Trim(Grupos[I].CodAlternativo) +
             ' en el albaran ' + Num(IdAlbC) + '.' +
+            sLineBreak +  }
+            E.Message {+
             sLineBreak +
-            E.Message +
-            sLineBreak +
-            'Verifique las lineas antes de reintentar.',
+            'Verifique las lineas antes de reintentar.'},
             mtError,
             [mbOK],
             0

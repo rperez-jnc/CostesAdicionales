@@ -18,6 +18,8 @@ type
     FUsuariosExcluidosCostesList: TstringList;
     FUsuariosExcluidosLotes: string;
     FUsuariosExcluidosLotesList: TstringList;
+    FArticulosExcluidosCajas: string;
+    FArticulosExcluidosCajasList: TstringList;
 
 
    public
@@ -27,11 +29,15 @@ type
     property ModificarCostesManuales : boolean read  FModificarCostesManuales write FModificarCostesManuales;
     property ParamNoModificarCostes : string read  FParamNoModificarCostes write FParamNoModificarCostes;
     property UsuariosExcluidosCajas : string read  FUsuariosExcluidosCajas write FUsuariosExcluidosCajas;
+    property ArticulosExcluidosCajas : string read  FArticulosExcluidosCajas write FArticulosExcluidosCajas;
+
     property UsuariosExcluidosPaquetes : string read  FUsuariosExcluidosPaquetes write FUsuariosExcluidosPaquetes;
     property UsuariosExcluidosCostes : string read  FUsuariosExcluidosCostes write FUsuariosExcluidosCostes;
     property UsuariosExcluidosLotes : string read  FUsuariosExcluidosLotes write FUsuariosExcluidosLotes;
 
     property UsuariosExcluidosCajasList : TstringList read  FUsuariosExcluidosCajasList write FUsuariosExcluidosCajasList;
+    property ArticulosExcluidosCajasList : TstringList read  FArticulosExcluidosCajasList write FArticulosExcluidosCajasList;
+
     property UsuariosExcluidosPaquetesList : TstringList read  FUsuariosExcluidosPaquetesList write FUsuariosExcluidosPaquetesList;
     property UsuariosExcluidosCostesList : TstringList read  FUsuariosExcluidosCostesList write FUsuariosExcluidosCostesList;
     property UsuariosExcluidosLotesList : TstringList read  FUsuariosExcluidosLotesList write FUsuariosExcluidosLotesList;
@@ -52,6 +58,8 @@ begin
   ModificarCostesManuales:= FArchivoIni.ReadString('Configuracion', 'ModificarCostesManuales', 'F') = 'T';
   ParamNoModificarCostes := FArchivoIni.ReadString('Configuracion', 'ParamNoModificarCostes', 'Param1');
   UsuariosExcluidosCajas := FArchivoIni.ReadString('Configuracion', 'UsuariosExcluidosCajas', '');
+  ArticulosExcluidosCajas := FArchivoIni.ReadString('Configuracion', 'ArticulosExcluidosCajas', '');
+
   UsuariosExcluidosPaquetes := FArchivoIni.ReadString('Configuracion', 'UsuariosExcluidosPaquetes', '');
   UsuariosExcluidosCostes := FArchivoIni.ReadString('Configuracion', 'UsuariosExcluidosCostes', '');
   UsuariosExcluidosLotes := FArchivoIni.ReadString('Configuracion', 'UsuariosExcluidosLotes', '');
@@ -60,6 +68,11 @@ begin
   UsuariosExcluidosCajasList:= TStringList.Create;
   UsuariosExcluidosCajasList.Delimiter := ',';
   UsuariosExcluidosCajasList.DelimitedText := UsuariosExcluidosCajas;
+
+  ArticulosExcluidosCajasList:= TStringList.Create;
+  ArticulosExcluidosCajasList.Delimiter := ',';
+  ArticulosExcluidosCajasList.DelimitedText := ArticulosExcluidosCajas;
+
 
   UsuariosExcluidosPaquetesList:= TStringList.Create;
   UsuariosExcluidosPaquetesList.Delimiter := ',';
