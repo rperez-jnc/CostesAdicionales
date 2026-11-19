@@ -67,7 +67,10 @@ end;
 function  ANTESDECAMBIODECAMPOENDOCUMENTOV2(Documento: String; IdDoc: Double;  Campo: String; const ValorAnterior, NuevoValor: OleVariant): OleVariant; stdcall;
 begin
   if campo = 'Linea.PrcMedio' then
+  begin
      CambiadoPrcMedio := true;
+
+  end;
   if ((campo = 'Linea.ObtPrcCoste') and not (NoModificarCostes)) then
   begin
      if ((ValorAnterior <> '') and (NuevoValor = 'MANU')) then
@@ -96,31 +99,42 @@ var
    lCodArt : string;
   lPaquetes, lBultos: integer;
   lUnidades: double;
+  lIdLinea: double;
 begin
     PermitirGuardar := true;
+
     lcalcpaquetes := true;
     lCalcCostes := true;
+
      for lI := 0 to DatosIniAplicacion.UsuariosExcluidosPaquetesList.Count - 1 do
         if (UPPERCASE(bd.NaxEnlace.Usuario)   = UPPERCASE(DatosIniAplicacion.UsuariosExcluidosPaquetesList[li])) then
         begin
             lcalcpaquetes := False;
 
         end;
+
      for lI := 0 to DatosIniAplicacion.UsuariosExcluidosCostesList.Count - 1 do
         if (UPPERCASE(bd.NaxEnlace.Usuario)   = UPPERCASE(DatosIniAplicacion.UsuariosExcluidosCostesList[li])) then
         begin
             lCalcCostes := False;
 
         end;
-   if lCalcPaquetes then
+
+   if estado < 2 then
    begin
+     lIdLinea := ifnull(TInternoDLL.GetValorCampoVarfloat(Linea, 'idlin'),0);
 
-     lUnidades :=  TInternoDLL.GetValorCampoVarFloat(Linea, 'unidades');
-     lCodart := TInternoDLL.GetValorCampoVarStr(Linea, 'codart');
-     lPaquetes := Bd.CalcularPaquetesArticulo(lCodArt, lUnidades, Documento);
-     lBUltos := Bd.CalcularBultosArticulo(lCodArt, lPaquetes, Documento);
+     if lCalcPaquetes then
+     begin
 
+       lUnidades :=  TInternoDLL.GetValorCampoVarFloat(Linea, 'unidades');
+       lCodart := TInternoDLL.GetValorCampoVarStr(Linea, 'codart');
+       lPaquetes := Bd.CalcularPaquetesArticulo(lCodArt, lUnidades, Documento);
+       lBUltos := Bd.CalcularBultosArticulo(lCodArt, lPaquetes, Documento);
+
+     end;
    end;
+
    if  ((Documento = 'AV') and (estado < 2) and (CambiadoPrcMedio) and not(NoModificarCostes) and (lCalcCostes)) then
    begin
 
@@ -148,6 +162,7 @@ begin
         if lcalcpaquetes then
         begin
 
+
            result := varArrayCreate([0, 4], varVariant);
            result[0] := 4;
            result[1] := VarArrayOf(['SOL_MODCOSTESADICIONALES', 'F']);
@@ -167,33 +182,40 @@ begin
       end
       else
       begin
-          if lcalcpaquetes then
+
+        if estado < 2 then
         begin
+            if lcalcpaquetes then
+          begin
 
-           result := varArrayCreate([0, 4], varVariant);
-           result[0] := 4;
-           result[1] := VarArrayOf(['SOL_COSTEANTERIOR', lPrcCoste]);
-           result[2] := VarArrayOf(['BUltos',inttostr(lBultos) ]);
-           result[3] := VarArrayOf(['Paquetes',inttostr(lPaquetes) ]);
-           result[4] := VarArrayOf(['Unidades',floattostr(lUnidades) ]);
+             result := varArrayCreate([0, 4], varVariant);
+             result[0] := 4;
+             result[1] := VarArrayOf(['SOL_COSTEANTERIOR', lPrcCoste]);
+             result[2] := VarArrayOf(['BUltos',inttostr(lBultos) ]);
+             result[3] := VarArrayOf(['Paquetes',inttostr(lPaquetes) ]);
+             result[4] := VarArrayOf(['Unidades',floattostr(lUnidades) ]);
 
 
-        end
-        else
-        begin
+          end
+          else
+          begin
 
-            result := varArrayCreate([0, 1], varVariant);
-            result[0] := 1;
-            result[1] := VarArrayOf(['SOL_COSTEANTERIOR', lPrcCoste]);
+              result := varArrayCreate([0, 1], varVariant);
+              result[0] := 1;
+              result[1] := VarArrayOf(['SOL_COSTEANTERIOR', lPrcCoste]);
 
+          end;
         end;
-
       end;
+
       CambiadoPrcMedio := False;
    end
    else
    begin
-     if lcalcpaquetes then
+
+     if estado < 2 then
+     begin
+          if lcalcpaquetes then
           begin
 
              result := varArrayCreate([0, 3], varVariant);
@@ -203,6 +225,7 @@ begin
              result[3] := VarArrayOf(['Unidades',floattostr(lUnidades) ]);
 
           end;
+     end;
    end;
 
    if  ((Documento = 'AC') and (estado < 2) and (lcalcpaquetes)) then
@@ -213,6 +236,7 @@ begin
        result[2] := VarArrayOf(['Paquetes',inttostr(lPaquetes) ]);
        result[3] := VarArrayOf(['Unidades',floattostr(lUnidades) ]);
    end;
+
 end;
 
 
@@ -224,9 +248,12 @@ var
 begin
    if  ((Documento = 'AV') and (estado < 2) and not (NoModificarCostes)) then
    begin
+
       NoModificarCostes :=   ifnull(TInternoDLL.GetValorCampoVarStr(Cabecera, DatosIniAplicacion.ParamNoModificarCostes),'F')= 'T';
+
       if NoModificarCostes then
          exit;
+
       lPrcMedioAnt := ifnull(TInternoDLL.GetValorCampoVarFloat(Linea, 'SOL_COSTEANTERIOR'),0);
 
 

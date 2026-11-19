@@ -75,8 +75,9 @@ begin
     begin
 
       lNumlin :=fieldbyname('numlinalb').AsFloat;
-
+      showmessage('NumLinALb: ' + floattostr(lNumLIn));
       NaxAlbaran.EditarLinea(lNumLin);
+      showmessage('Editando linea');
       //lCoste := NaxAlbaran.AsFloatLin['PrcMedio'];
 
       lUnidades :=NaxAlbaran.AsFloatLin['Unidades'];
@@ -141,9 +142,9 @@ begin
       end;
 
       NaxAlbaran.AnadirLinea;
-
+      showmessage('Añadida linea');
       next;
-      lNumlin :=fieldbyname('numlinalb').AsFloat;
+
     end;
 
   end;
@@ -333,37 +334,72 @@ begin
     Almacenes.Sorted := True;
     Almacenes.Duplicates := dupIgnore;
 
+     // ==================================================
+    // CALCULAR CAJAS EXCLUYENDO ARTICULOS ORIGINALES
+    // ==================================================
+
     Q.SQL.Text :=
       'SELECT L.CODALM, A.CODARTALT AS CODART, ' +
       'CEILING(SUM(CAST(L.UNIDADES AS decimal(22,6)) / ' +
       'CAST(A.UNIPAQV AS decimal(22,6)))) AS UNIDADES ' +
-      'FROM LINEALBA L JOIN ARTICULO A ON A.CODART=L.CODART ' +
-      'WHERE L.IDALBV=:ALB AND L.UNIDADES>0 ' +
-      'AND NULLIF(LTRIM(RTRIM(A.CODARTALT)),'''') IS NOT NULL ' +
-      'AND A.UNIPAQV>0 ' +
-      'GROUP BY L.CODALM,A.CODARTALT ORDER BY L.CODALM,A.CODARTALT';
-    Q.Parameters.ParamByName('ALB').Value := IdAlbv;
-    Q.Open;
-    while not Q.Eof do
-    begin
-      lCajas := true;
-      for lI := 0 to vArticulosExcluidosCajasList.Count - 1 do
-        if (UPPERCASE(NaxEnlace.Usuario) = UPPERCASE(vArticulosExcluidosCajasList[li])) then
-        begin
-            lCajas := False;
+      'FROM LINEALBA L ' +
+      'INNER JOIN ARTICULO A ON A.CODART = L.CODART ' +
+      'WHERE L.IDALBV = :ALB ' +
+      ' AND L.UNIDADES > 0 ' +
+      ' AND NULLIF(LTRIM(RTRIM(A.CODARTALT)), '''') IS NOT NULL ' +
+      ' AND A.UNIPAQV > 0 ';
 
-        end;
-      if lCajas then
+    // Excluir articulos ORIGINALES antes de calcular.
+    // Usamos parametros para evitar SQL Injection.
+
+    for li := 0 to vArticulosExcluidosCajasList.Count - 1 do
+    begin
+      if Trim(vArticulosExcluidosCajasList[li]) <> '' then
       begin
-          I := Length(Deseadas);
-          SetLength(Deseadas,I+1);
-          Deseadas[I].CodAlm := Q.FieldByName('CODALM').AsString;
-          Deseadas[I].CodArt := Q.FieldByName('CODART').AsString;
-          Deseadas[I].Cantidad := Q.FieldByName('UNIDADES').AsFloat;
-          Almacenes.Add(Deseadas[I].CodAlm);
-          Q.Next;
+        Q.SQL.Text := Q.SQL.Text +
+          ' AND UPPER(LTRIM(RTRIM(L.CODART))) <> :EXC' +
+          IntToStr(li) + ' ';
       end;
     end;
+
+    Q.SQL.Text := Q.SQL.Text +
+      'GROUP BY L.CODALM, A.CODARTALT ' +
+      'ORDER BY L.CODALM, A.CODARTALT';
+
+    Q.Parameters.ParamByName('ALB').Value := IdAlbv;
+
+    // Asignar parametros de exclusiones.
+
+    for li := 0 to vArticulosExcluidosCajasList.Count - 1 do
+    begin
+      if Trim(vArticulosExcluidosCajasList[li]) <> '' then
+      begin
+        Q.Parameters.ParamByName('EXC' + IntToStr(li)).Value :=
+          UpperCase(Trim(vArticulosExcluidosCajasList[li]));
+      end;
+    end;
+
+    Q.Open;
+
+    while not Q.Eof do
+    begin
+      I := Length(Deseadas);
+      SetLength(Deseadas, I + 1);
+
+      Deseadas[I].CodAlm :=
+        Q.FieldByName('CODALM').AsString;
+
+      Deseadas[I].CodArt :=
+        Q.FieldByName('CODART').AsString;
+
+      Deseadas[I].Cantidad :=
+        Q.FieldByName('UNIDADES').AsFloat;
+
+      Almacenes.Add(Deseadas[I].CodAlm);
+
+      Q.Next;
+    end;
+
     Q.Close;
 
     // Incluir almacenes que ya tenian regularizacion pero ahora tienen cero
@@ -869,26 +905,17 @@ var
   begin
     Result := False;
 
-    if Trim(vArticulosExcluidosCajasList) = '' then
+    if vArticulosExcluidosCajasList.Count = 0 then
       Exit;
 
-    Lista := TStringList.Create;
-    try
-      Lista.StrictDelimiter := True;
-      Lista.Delimiter := ',';
-      Lista.DelimitedText := vArticulosExcluidosCajasList;
-
-      for I := 0 to Lista.Count - 1 do
+     for I := 0 to vArticulosExcluidosCajasList.Count - 1 do
       begin
-        if SameText(Trim(Lista[I]), Trim(CodArt)) then
+        if SameText(Trim(vArticulosExcluidosCajasList[I]), Trim(CodArt)) then
         begin
           Result := True;
           Exit;
         end;
       end;
-    finally
-      Lista.Free;
-    end;
   end;
 
 begin

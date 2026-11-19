@@ -12,6 +12,7 @@ type
     qLineasCoste: TADOQuery;
   private
     { Private declarations }
+    function NumLineaPorIdLin(vIdAlbv, vIdLin: double): double;
   public
     { Public declarations }
     function SumaCostesAdiciones(vIdAlbv:double):double;
@@ -40,7 +41,7 @@ implementation
 
 { TdmdDatos }
 
-procedure TdmdDatos.ActualizaCosteLineas(vIdAlbv, vCosteUnidad: double; vModificarCostesManuales:boolean);
+{procedure TdmdDatos.ActualizaCosteLineas(vIdAlbv, vCosteUnidad: double; vModificarCostesManuales:boolean);
 var
   NaxAlbaran : albaran;
   NaxVarios : Varios;
@@ -55,9 +56,6 @@ begin
   Naxvarios := coVarios.Create;
   NaxAlbaran := coAlbaran.Create;
   NaxAlbaran.Iniciar;
-
-  NaxAlbaran.Modifica(vIdAlbv, False);
-  NaxAlbaran.OmitirMensajes := True;
 
   with qLineasCoste do
   begin
@@ -74,9 +72,13 @@ begin
     while not eof do
     begin
 
-      lNumlin :=fieldbyname('numlinalb').AsFloat;
 
+      NaxAlbaran.Modifica(vIdAlbv, False);
+      NaxAlbaran.OmitirMensajes := True;
+      lNumlin :=fieldbyname('numlinalb').AsFloat;
+      showmessage('NumLinALb: ' + floattostr(lNumLIn));
       NaxAlbaran.EditarLinea(lNumLin);
+      showmessage('Editando linea');
       //lCoste := NaxAlbaran.AsFloatLin['PrcMedio'];
 
       lUnidades :=NaxAlbaran.AsFloatLin['Unidades'];
@@ -141,18 +143,144 @@ begin
       end;
 
       NaxAlbaran.AnadirLinea;
-
+      showmessage('Añadida linea');
+      aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam('AV')] := 'T';
+      NaxAlbaran.Anade;
+      showmessage('Guardado Albaran');
       next;
-      lNumlin :=fieldbyname('numlinalb').AsFloat;
+
     end;
 
   end;
 
-  aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam('AV')] := 'T';
-  NaxAlbaran.Anade;
+
 
   NaxAlbaran.Acabar;
+end;  }
+function TdmdDatos.NumLineaPorIdLin(vIdAlbv, vIdLin: double): double;
+begin
+  // NUMLINALB no es estable: a3ERP lo reasigna cada vez que se graba la linea.
+  // IDLIN si lo es, asi que se vuelve a traducir justo antes de cada EditarLinea.
+  with qLineasCoste do
+  begin
+    Close;
+    SQL.Clear;
+    SQL.Add('select numlinalb from linealba with(nolock)');
+    SQL.Add('where idalbv = ' + FormateaFloatSql(vIdAlbv));
+    SQL.Add('and idlin = ' + FormateaFloatSql(vIdLin));
+    Open;
+    if Eof then
+      Result := 0
+    else
+      Result := FieldByName('numlinalb').AsFloat;
+    Close;
+  end;
 end;
+
+procedure TdmdDatos.ActualizaCosteLineas(vIdAlbv, vCosteUnidad: double; vModificarCostesManuales: boolean);
+var
+  NaxAlbaran : albaran;
+  NaxVarios  : Varios;
+  lLineas    : array of double;
+  i          : integer;
+  lNumLin    : double;
+  lObtPrcCoste : string;
+  lCodArt, lCodAlm : string;
+  lPrcCoste  : double;
+lGrupoKit, lGrupoKitAnt : integer;
+begin
+  // 1) Capturar los IDLIN (identificador estable) y CERRAR el cursor antes de
+  //    tocar el documento. No se guarda NUMLINALB porque AnadirLinea lo cambia.
+  SetLength(lLineas, 0);
+
+  lGrupoKit := 0;
+  lGrupoKitAnt := 0;
+  with qLineasCoste do
+  begin
+    Close;
+    SQL.Clear;
+    SQL.Add('select idlin, grupokit from linealba with(nolock)');
+    SQL.Add('where idalbv = ' + FormateaFloatSql(vIdAlbv));
+    SQL.Add('order by ordlin, numlinalb');
+    Open;
+    while not Eof do
+    begin
+      lGrupoKit :=  FieldByName('grupokit').AsInteger;
+      if lgrupoKit <> lGrupokitAnt then
+      begin
+        SetLength(lLineas, Length(lLineas) + 1);
+        lLineas[High(lLineas)] := FieldByName('idlin').AsFloat;
+      end;
+      lGrupoKitAnt := lGrupoKit;
+      Next;
+    end;
+    Close;
+  end;
+
+  if Length(lLineas) = 0 then Exit;
+
+  NaxVarios  := coVarios.Create;
+  NaxAlbaran := coAlbaran.Create;
+  NaxAlbaran.Iniciar;
+  try
+    NaxAlbaran.OmitirMensajes := True;
+
+    for i := 0 to High(lLineas) do
+    begin
+      // Numero de linea actual de ese IDLIN. Si la linea ya no existe, se salta.
+      lNumLin := NumLineaPorIdLin(vIdAlbv, lLineas[i]);
+      if lNumLin = 0 then
+        Continue;
+
+      // Un ciclo Modifica..Anade por linea: tras AnadirLinea la linea se graba
+      // y se renumera, por lo que no se puede volver a EditarLinea en la misma
+      // edicion del documento.
+      NaxAlbaran.Modifica(vIdAlbv, False);
+      try
+        NaxAlbaran.EditarLinea(lNumLin);
+
+        // Leer del propio documento, no del dataset (ya esta cerrado)
+        lObtPrcCoste := NaxAlbaran.AsStringLin['ObtPrcCoste'];
+        lCodArt      := NaxAlbaran.AsStringLin['CodArt'];
+        lCodAlm      := NaxAlbaran.AsStringLin['CodAlm'];
+
+        if (UpperCase(lObtPrcCoste) <> 'MANU') or vModificarCostesManuales then
+        begin
+          lPrcCoste := IfNull(NaxAlbaran.AsFloatLin['SOL_COSTEANTERIOR'], 0);
+
+          if (lPrcCoste = 0) and (UpperCase(lObtPrcCoste) <> 'MANU') then
+            lPrcCoste := IfNull(NaxVarios.ObtPrecioCoste(lCodArt, lCodAlm, lObtPrcCoste), 0);
+
+          if (lPrcCoste = 0) and (UpperCase(lObtPrcCoste) = 'MANU') then
+            lPrcCoste := NaxAlbaran.AsFloatLin['PrcMedio'];
+
+          NaxAlbaran.AsFloatLin['PrcMedio'] := IfNull(lPrcCoste + vCosteUnidad, 0);
+          NaxAlbaran.AsStringLin['SOL_MODCOSTESADICIONALES'] := 'T';
+
+          NaxAlbaran.AnadirLinea;
+          aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam('AV')] := 'T';
+          NaxAlbaran.Anade;
+        end
+        else
+        begin
+          // Linea con coste manual que no hay que tocar: no se graba nada.
+          NaxAlbaran.CancelaLin;
+          NaxAlbaran.Cancela;
+        end;
+      except
+        aGuardadoPorDll[TTablaA3.tipoDocumentoPorParam('AV')] := 'F';
+        try
+          NaxAlbaran.Cancela;
+        except
+        end;
+        raise;
+      end;
+    end;
+  finally
+    NaxAlbaran.Acabar;
+  end;
+end;
+
 
 function TdmdDatos.BuscarNumeroDocumento(vIdDoc: double; vTipo: string): string;
 begin

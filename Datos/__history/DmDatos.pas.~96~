@@ -21,8 +21,8 @@ type
     function BuscarParam(vIdalbv:double; vparametro:string):boolean;
     procedure ObtenerLineasConLote(vIdAlbc:double);
     function ObtenerCodPro(vIdAlbc:double):string;
-    procedure ProcesarAlternativosAlbaran(const IdAlbC: Double);
-    procedure GenerarRegularizacionesAlternativosVenta(const IdAlbv: Double);
+    procedure ProcesarAlternativosAlbaran(const IdAlbC: Double; vArticulosExcluidosCajasList: TStringList);
+    procedure GenerarRegularizacionesAlternativosVenta(const IdAlbv: Double; vArticulosExcluidosCajasList:TStringList);
     function BuscarNumeroDocumento(vIdDoc:double;vTipo:string):string;
     function CalcularPaquetesArticulo(vCodArt:string; vUnidades:double; vDocumento:string):integer;
     function CalcularBultosArticulo(vCodArt:string; vPaquetes:integer; vDocumento:string):integer;
@@ -253,7 +253,7 @@ begin
 end;
 
 procedure TdmdDatos.GenerarRegularizacionesAlternativosVenta(
-  const IdAlbv: Double);
+  const IdAlbv: Double; vArticulosExcluidosCajasList:TStringList);
 type
   TLinea = record
     CodAlm: string;
@@ -271,6 +271,8 @@ var
   Existe, Cambiado, Iniciado: Boolean;
   TotalDeseado, TotalActual: Double;
   CodArt: string;
+  li:integer;
+  lCajas : boolean;
 
   procedure Ejecutar(const SQLTexto: string; const AIdReg: Currency = 0);
   begin
@@ -316,6 +318,7 @@ var
   end;
 
 begin
+
   if IdAlbv <= 0 then Exit;
   Q := TADOQuery.Create(nil);
   QControl := TADOQuery.Create(nil);
@@ -330,27 +333,72 @@ begin
     Almacenes.Sorted := True;
     Almacenes.Duplicates := dupIgnore;
 
+     // ==================================================
+    // CALCULAR CAJAS EXCLUYENDO ARTICULOS ORIGINALES
+    // ==================================================
+
     Q.SQL.Text :=
       'SELECT L.CODALM, A.CODARTALT AS CODART, ' +
       'CEILING(SUM(CAST(L.UNIDADES AS decimal(22,6)) / ' +
       'CAST(A.UNIPAQV AS decimal(22,6)))) AS UNIDADES ' +
-      'FROM LINEALBA L JOIN ARTICULO A ON A.CODART=L.CODART ' +
-      'WHERE L.IDALBV=:ALB AND L.UNIDADES>0 ' +
-      'AND NULLIF(LTRIM(RTRIM(A.CODARTALT)),'''') IS NOT NULL ' +
-      'AND A.UNIPAQV>0 ' +
-      'GROUP BY L.CODALM,A.CODARTALT ORDER BY L.CODALM,A.CODARTALT';
+      'FROM LINEALBA L ' +
+      'INNER JOIN ARTICULO A ON A.CODART = L.CODART ' +
+      'WHERE L.IDALBV = :ALB ' +
+      ' AND L.UNIDADES > 0 ' +
+      ' AND NULLIF(LTRIM(RTRIM(A.CODARTALT)), '''') IS NOT NULL ' +
+      ' AND A.UNIPAQV > 0 ';
+
+    // Excluir articulos ORIGINALES antes de calcular.
+    // Usamos parametros para evitar SQL Injection.
+
+    for li := 0 to vArticulosExcluidosCajasList.Count - 1 do
+    begin
+      if Trim(vArticulosExcluidosCajasList[li]) <> '' then
+      begin
+        Q.SQL.Text := Q.SQL.Text +
+          ' AND UPPER(LTRIM(RTRIM(L.CODART))) <> :EXC' +
+          IntToStr(li) + ' ';
+      end;
+    end;
+
+    Q.SQL.Text := Q.SQL.Text +
+      'GROUP BY L.CODALM, A.CODARTALT ' +
+      'ORDER BY L.CODALM, A.CODARTALT';
+
     Q.Parameters.ParamByName('ALB').Value := IdAlbv;
+
+    // Asignar parametros de exclusiones.
+
+    for li := 0 to vArticulosExcluidosCajasList.Count - 1 do
+    begin
+      if Trim(vArticulosExcluidosCajasList[li]) <> '' then
+      begin
+        Q.Parameters.ParamByName('EXC' + IntToStr(li)).Value :=
+          UpperCase(Trim(vArticulosExcluidosCajasList[li]));
+      end;
+    end;
+
     Q.Open;
+
     while not Q.Eof do
     begin
       I := Length(Deseadas);
-      SetLength(Deseadas,I+1);
-      Deseadas[I].CodAlm := Q.FieldByName('CODALM').AsString;
-      Deseadas[I].CodArt := Q.FieldByName('CODART').AsString;
-      Deseadas[I].Cantidad := Q.FieldByName('UNIDADES').AsFloat;
+      SetLength(Deseadas, I + 1);
+
+      Deseadas[I].CodAlm :=
+        Q.FieldByName('CODALM').AsString;
+
+      Deseadas[I].CodArt :=
+        Q.FieldByName('CODART').AsString;
+
+      Deseadas[I].Cantidad :=
+        Q.FieldByName('UNIDADES').AsFloat;
+
       Almacenes.Add(Deseadas[I].CodAlm);
+
       Q.Next;
     end;
+
     Q.Close;
 
     // Incluir almacenes que ya tenian regularizacion pero ahora tienen cero
@@ -824,7 +872,7 @@ begin
   end;
 end;       }
 
-procedure TdmdDatos.ProcesarAlternativosAlbaran(const IdAlbC: Double);
+procedure TdmdDatos.ProcesarAlternativosAlbaran(const IdAlbC: Double; vArticulosExcluidosCajasList: TStringList);
 type
   TGrupo = record
     IdPedC: Double;
@@ -847,6 +895,26 @@ var
   function Num(const Valor: Double): string;
   begin
     Result := FormatFloat('0.######', Valor);
+  end;
+
+  function EsArticuloExcluido(const CodArt: string): Boolean;
+  var
+    Lista: TStringList;
+    I: Integer;
+  begin
+    Result := False;
+
+    if vArticulosExcluidosCajasList.Count = 0 then
+      Exit;
+
+     for I := 0 to vArticulosExcluidosCajasList.Count - 1 do
+      begin
+        if SameText(Trim(vArticulosExcluidosCajasList[I]), Trim(CodArt)) then
+        begin
+          Result := True;
+          Exit;
+        end;
+      end;
   end;
 
 begin
@@ -926,6 +994,16 @@ begin
 
     while not QGrupos.Eof do
     begin
+
+      // Si el articulo original esta excluido,
+      // no realizamos ningun tratamiento de cajas.
+      if EsArticuloExcluido(
+        QGrupos.FieldByName('COD_ORIGINAL').AsString
+      ) then
+      begin
+        QGrupos.Next;
+        Continue;
+      end;
 
       // La linea alternativa debe existir.
 

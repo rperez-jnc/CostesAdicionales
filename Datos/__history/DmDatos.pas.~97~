@@ -21,8 +21,8 @@ type
     function BuscarParam(vIdalbv:double; vparametro:string):boolean;
     procedure ObtenerLineasConLote(vIdAlbc:double);
     function ObtenerCodPro(vIdAlbc:double):string;
-    procedure ProcesarAlternativosAlbaran(const IdAlbC: Double);
-    procedure GenerarRegularizacionesAlternativosVenta(const IdAlbv: Double);
+    procedure ProcesarAlternativosAlbaran(const IdAlbC: Double; vArticulosExcluidosCajasList: TStringList);
+    procedure GenerarRegularizacionesAlternativosVenta(const IdAlbv: Double; vArticulosExcluidosCajasList:TStringList);
     function BuscarNumeroDocumento(vIdDoc:double;vTipo:string):string;
     function CalcularPaquetesArticulo(vCodArt:string; vUnidades:double; vDocumento:string):integer;
     function CalcularBultosArticulo(vCodArt:string; vPaquetes:integer; vDocumento:string):integer;
@@ -75,8 +75,9 @@ begin
     begin
 
       lNumlin :=fieldbyname('numlinalb').AsFloat;
-
+      showmessage('NumLinALb: ' + floattostr(lNumLIn));
       NaxAlbaran.EditarLinea(lNumLin);
+      showmessage('Editando linea');
       //lCoste := NaxAlbaran.AsFloatLin['PrcMedio'];
 
       lUnidades :=NaxAlbaran.AsFloatLin['Unidades'];
@@ -253,7 +254,7 @@ begin
 end;
 
 procedure TdmdDatos.GenerarRegularizacionesAlternativosVenta(
-  const IdAlbv: Double);
+  const IdAlbv: Double; vArticulosExcluidosCajasList:TStringList);
 type
   TLinea = record
     CodAlm: string;
@@ -271,6 +272,8 @@ var
   Existe, Cambiado, Iniciado: Boolean;
   TotalDeseado, TotalActual: Double;
   CodArt: string;
+  li:integer;
+  lCajas : boolean;
 
   procedure Ejecutar(const SQLTexto: string; const AIdReg: Currency = 0);
   begin
@@ -316,6 +319,7 @@ var
   end;
 
 begin
+
   if IdAlbv <= 0 then Exit;
   Q := TADOQuery.Create(nil);
   QControl := TADOQuery.Create(nil);
@@ -330,27 +334,72 @@ begin
     Almacenes.Sorted := True;
     Almacenes.Duplicates := dupIgnore;
 
+     // ==================================================
+    // CALCULAR CAJAS EXCLUYENDO ARTICULOS ORIGINALES
+    // ==================================================
+
     Q.SQL.Text :=
       'SELECT L.CODALM, A.CODARTALT AS CODART, ' +
       'CEILING(SUM(CAST(L.UNIDADES AS decimal(22,6)) / ' +
       'CAST(A.UNIPAQV AS decimal(22,6)))) AS UNIDADES ' +
-      'FROM LINEALBA L JOIN ARTICULO A ON A.CODART=L.CODART ' +
-      'WHERE L.IDALBV=:ALB AND L.UNIDADES>0 ' +
-      'AND NULLIF(LTRIM(RTRIM(A.CODARTALT)),'''') IS NOT NULL ' +
-      'AND A.UNIPAQV>0 ' +
-      'GROUP BY L.CODALM,A.CODARTALT ORDER BY L.CODALM,A.CODARTALT';
+      'FROM LINEALBA L ' +
+      'INNER JOIN ARTICULO A ON A.CODART = L.CODART ' +
+      'WHERE L.IDALBV = :ALB ' +
+      ' AND L.UNIDADES > 0 ' +
+      ' AND NULLIF(LTRIM(RTRIM(A.CODARTALT)), '''') IS NOT NULL ' +
+      ' AND A.UNIPAQV > 0 ';
+
+    // Excluir articulos ORIGINALES antes de calcular.
+    // Usamos parametros para evitar SQL Injection.
+
+    for li := 0 to vArticulosExcluidosCajasList.Count - 1 do
+    begin
+      if Trim(vArticulosExcluidosCajasList[li]) <> '' then
+      begin
+        Q.SQL.Text := Q.SQL.Text +
+          ' AND UPPER(LTRIM(RTRIM(L.CODART))) <> :EXC' +
+          IntToStr(li) + ' ';
+      end;
+    end;
+
+    Q.SQL.Text := Q.SQL.Text +
+      'GROUP BY L.CODALM, A.CODARTALT ' +
+      'ORDER BY L.CODALM, A.CODARTALT';
+
     Q.Parameters.ParamByName('ALB').Value := IdAlbv;
+
+    // Asignar parametros de exclusiones.
+
+    for li := 0 to vArticulosExcluidosCajasList.Count - 1 do
+    begin
+      if Trim(vArticulosExcluidosCajasList[li]) <> '' then
+      begin
+        Q.Parameters.ParamByName('EXC' + IntToStr(li)).Value :=
+          UpperCase(Trim(vArticulosExcluidosCajasList[li]));
+      end;
+    end;
+
     Q.Open;
+
     while not Q.Eof do
     begin
       I := Length(Deseadas);
-      SetLength(Deseadas,I+1);
-      Deseadas[I].CodAlm := Q.FieldByName('CODALM').AsString;
-      Deseadas[I].CodArt := Q.FieldByName('CODART').AsString;
-      Deseadas[I].Cantidad := Q.FieldByName('UNIDADES').AsFloat;
+      SetLength(Deseadas, I + 1);
+
+      Deseadas[I].CodAlm :=
+        Q.FieldByName('CODALM').AsString;
+
+      Deseadas[I].CodArt :=
+        Q.FieldByName('CODART').AsString;
+
+      Deseadas[I].Cantidad :=
+        Q.FieldByName('UNIDADES').AsFloat;
+
       Almacenes.Add(Deseadas[I].CodAlm);
+
       Q.Next;
     end;
+
     Q.Close;
 
     // Incluir almacenes que ya tenian regularizacion pero ahora tienen cero
@@ -617,7 +666,7 @@ end;
 
 // NUEVO: trabaja sobre un AV ya confirmado. Nunca ejecuta UPDATE de documentos.
 
-procedure TdmdDatos.ProcesarAlternativosAlbaran(const IdAlbC: Double);
+{procedure TdmdDatos.ProcesarAlternativosAlbaran(const IdAlbC: Double);
 type
   TGrupo = record
     IdPedC: Double;
@@ -659,20 +708,8 @@ begin
     // Calculamos las cajas necesarias como magnitud positiva.
     // Las cajas ya servidas aparecen con unidades negativas,
     // por lo que invertimos su signo para descontarlas.
-   { QGrupos.SQL.Text :=
-      'SELECT L.IDPEDC, A.CODARTALT, ' +
-      ' CEILING(SUM(L.UNIDADES / A.UNIPAQC)) AS NECESARIAS, ' +
-      ' (SELECT -COALESCE(SUM(X.UNIDADES),0) FROM LINEALBA X ' +
-      '   WHERE X.IDALBC = :ALB2 AND X.IDPEDC = L.IDPEDC ' +
-      '     AND X.CODART = A.CODARTALT) AS YA_EN_ALBARAN ' +
-      'FROM LINEALBA L INNER JOIN ARTICULO A ON A.CODART = L.CODART ' +
-      'WHERE L.IDALBC = :ALB AND L.IDPEDC IS NOT NULL ' +
-      ' AND NULLIF(LTRIM(RTRIM(A.CODARTALT)), '''') IS NOT NULL ' +
-      ' AND L.UNIDADES > 0 ' +
-      ' AND A.UNIPAQC > 0 ' +
-      'GROUP BY L.IDPEDC, A.CODARTALT';      }
 
-       QGrupos.SQL.Text :=
+    QGrupos.SQL.Text :=
       'SELECT L.IDPEDC, A.CODARTALT, ' +
       ' CEILING(L.UNIDADES / A.UNIPAQC) AS NECESARIAS, ' +
       ' (SELECT -COALESCE(X.UNIDADES,0) FROM LINEALBA X ' +
@@ -745,9 +782,6 @@ begin
 
       Cantidad := Necesarias;
 
-      //Solo la primera. Una caja por cada linea
-     // while not QLineas.Eof do
-     // begin
 
 
           N := Length(Plan);
@@ -759,9 +793,6 @@ begin
           // CAMBIO: guardamos cantidad NEGATIVA
           // para servirla con el signo del pedido.
           Plan[N].Cantidad := - Cantidad;
-
-   //     QLineas.Next;
-   //   end;
 
       QLineas.Close;
 
@@ -822,15 +853,7 @@ begin
             except
             end;
 
-          MessageDlg(
-            {'No se ha podido completar el servido del alternativo ' +
-            Trim(Grupos[I].CodAlternativo) +
-            ' en el albaran ' + Num(IdAlbC) + '.' +
-            sLineBreak +  }
-            E.Message {+
-            sLineBreak +
-            'Verifique las lineas antes de reintentar.'},
-            mtError,
+          MessageDlg( E.Message, mtError,
             [mbOK],
             0
           );
@@ -848,6 +871,425 @@ begin
     QLineas.Free;
     QGrupos.Free;
   end;
+end;       }
+
+procedure TdmdDatos.ProcesarAlternativosAlbaran(const IdAlbC: Double; vArticulosExcluidosCajasList: TStringList);
+type
+  TGrupo = record
+    IdPedC: Double;
+    NumLinOriginal: Double;
+    NumLinAlternativo: Double;
+    CodOriginal: string;
+    CodAlternativo: string;
+    Necesarias: Double;
+  end;
+
+var
+  QGrupos, QLineas: TADOQuery;
+  Grupos: array of TGrupo;
+  NaxAlbaran: Albaran;
+  I, N: Integer;
+  Necesarias, YaEnAlbaran, Pendientes, Cantidad: Double;
+  Preparado, MarcaGuardado: Boolean;
+  GuardadoAnterior: string;
+
+  function Num(const Valor: Double): string;
+  begin
+    Result := FormatFloat('0.######', Valor);
+  end;
+
+  function EsArticuloExcluido(const CodArt: string): Boolean;
+  var
+    Lista: TStringList;
+    I: Integer;
+  begin
+    Result := False;
+
+    if vArticulosExcluidosCajasList.Count = 0 then
+      Exit;
+
+     for I := 0 to vArticulosExcluidosCajasList.Count - 1 do
+      begin
+        if SameText(Trim(vArticulosExcluidosCajasList[I]), Trim(CodArt)) then
+        begin
+          Result := True;
+          Exit;
+        end;
+      end;
+  end;
+
+begin
+  if IdAlbC <= 0 then
+    Exit;
+
+  QGrupos := TADOQuery.Create(nil);
+  QLineas := TADOQuery.Create(nil);
+
+  try
+    QGrupos.Connection := query.Connection;
+    QLineas.Connection := query.Connection;
+
+    SetLength(Grupos, 0);
+
+    // ==================================================
+    // 1. LOCALIZAR LAS LINEAS ORIGINALES DEL ALBARAN
+    //    Y SU LINEA ALTERNATIVA EN EL PEDIDO
+    // ==================================================
+
+    QGrupos.SQL.Text :=
+      'SELECT ' +
+      ' L.IDPEDC, ' +
+      ' L.NUMLINPED AS NUMLIN_ORIGINAL, ' +
+      ' L.CODART AS COD_ORIGINAL, ' +
+      ' A.CODARTALT, ' +
+      ' PALT.NUMLINPED AS NUMLIN_ALTERNATIVO, ' +
+      ' PALT.CODART AS COD_ALTERNATIVO, ' +
+      ' PALT.UNIDADES AS UNIDADES_ALTERNATIVO, ' +
+      ' CEILING( ' +
+      '   SUM(CAST(L.UNIDADES AS DECIMAL(18,6))) / ' +
+      '   MAX(CAST(A.UNIPAQC AS DECIMAL(18,6))) ' +
+      ' ) AS NECESARIAS ' +
+
+      'FROM LINEALBA L ' +
+
+      'INNER JOIN ARTICULO A ' +
+      ' ON A.CODART = L.CODART ' +
+
+      // Buscamos la siguiente linea real del pedido.
+
+      'OUTER APPLY ( ' +
+      ' SELECT TOP 1 ' +
+      '   P.NUMLINPED, P.CODART, P.UNIDADES ' +
+      ' FROM LINEPEDI P ' +
+      ' WHERE P.IDPEDC = L.IDPEDC ' +
+      '   AND P.NUMLINPED > L.NUMLINPED ' +
+      ' ORDER BY P.NUMLINPED ' +
+      ') PALT ' +
+
+      'WHERE L.IDALBC = :ALB ' +
+      ' AND L.IDPEDC IS NOT NULL ' +
+      ' AND L.NUMLINPED IS NOT NULL ' +
+      ' AND L.UNIDADES > 0 ' +
+      ' AND NULLIF(LTRIM(RTRIM(A.CODARTALT)), '''') ' +
+      '     IS NOT NULL ' +
+      ' AND A.UNIPAQC > 0 ' +
+
+      'GROUP BY ' +
+      ' L.IDPEDC, ' +
+      ' L.NUMLINPED, ' +
+      ' L.CODART, ' +
+      ' A.CODARTALT, ' +
+      ' PALT.NUMLINPED, ' +
+      ' PALT.CODART, ' +
+      ' PALT.UNIDADES ' +
+
+      'ORDER BY L.IDPEDC, L.NUMLINPED';
+
+    QGrupos.Parameters.ParamByName('ALB').Value := IdAlbC;
+
+    QGrupos.Open;
+
+    // ==================================================
+    // 2. CREAR GRUPOS Y VALIDAR LAS RELACIONES
+    // ==================================================
+
+    while not QGrupos.Eof do
+    begin
+
+      // Si el articulo original esta excluido,
+      // no realizamos ningun tratamiento de cajas.
+      if EsArticuloExcluido(
+        QGrupos.FieldByName('COD_ORIGINAL').AsString
+      ) then
+      begin
+        QGrupos.Next;
+        Continue;
+      end;
+
+      // La linea alternativa debe existir.
+
+      if QGrupos.FieldByName(
+        'NUMLIN_ALTERNATIVO').IsNull then
+      begin
+        raise Exception.Create(
+          'No existe linea alternativa para el articulo ' +
+          QGrupos.FieldByName('COD_ORIGINAL').AsString
+        );
+      end;
+
+      // Comprobar que la siguiente linea corresponde
+      // al articulo alternativo configurado.
+
+      if Trim(QGrupos.FieldByName(
+         'COD_ALTERNATIVO').AsString) <>
+         Trim(QGrupos.FieldByName(
+         'CODARTALT').AsString) then
+      begin
+        raise Exception.Create(
+          'La linea siguiente al articulo ' +
+          QGrupos.FieldByName('COD_ORIGINAL').AsString +
+          ' no corresponde al alternativo ' +
+          QGrupos.FieldByName('CODARTALT').AsString
+        );
+      end;
+
+      // Las cantidades de las cajas deben ser negativas.
+
+      if QGrupos.FieldByName(
+         'UNIDADES_ALTERNATIVO').AsFloat >= 0 then
+      begin
+        raise Exception.Create(
+          'La linea del articulo alternativo ' +
+          QGrupos.FieldByName('CODARTALT').AsString +
+          ' no tiene unidades negativas.'
+        );
+      end;
+
+      N := Length(Grupos);
+      SetLength(Grupos, N + 1);
+
+      Grupos[N].IdPedC :=
+        QGrupos.FieldByName('IDPEDC').AsFloat;
+
+      Grupos[N].NumLinOriginal :=
+        QGrupos.FieldByName('NUMLIN_ORIGINAL').AsFloat;
+
+      Grupos[N].NumLinAlternativo :=
+        QGrupos.FieldByName('NUMLIN_ALTERNATIVO').AsFloat;
+
+      Grupos[N].CodOriginal :=
+        QGrupos.FieldByName('COD_ORIGINAL').AsString;
+
+      Grupos[N].CodAlternativo :=
+        QGrupos.FieldByName('CODARTALT').AsString;
+
+      Grupos[N].Necesarias :=
+        QGrupos.FieldByName('NECESARIAS').AsFloat;
+
+      QGrupos.Next;
+    end;
+
+    QGrupos.Close;
+
+    // ==================================================
+    // 3. PROCESAR CADA GRUPO
+    // ==================================================
+
+    for I := 0 to High(Grupos) do
+    begin
+
+      Necesarias := Grupos[I].Necesarias;
+
+      QLineas.Close;
+
+      // ==================================================
+      // 4. CONSULTAR LAS CAJAS DE LA LINEA CONCRETA
+      //
+      // No buscamos por CODART solamente.
+      // Filtramos por IDPEDC y NUMLINPED.
+      // ==================================================
+
+      QLineas.SQL.Text :=
+        'SELECT ' +
+        ' P.NUMLINPED, ' +
+
+        ' (P.UNIDADES ' +
+        '  - COALESCE(P.UNISERVIDA,0) ' +
+        '  - COALESCE(P.UNIANULADA,0)) AS PENDIENTES, ' +
+
+        ' (SELECT COALESCE(-SUM(X.UNIDADES),0) ' +
+        '  FROM LINEALBA X ' +
+        '  WHERE X.IDALBC = :ALB ' +
+        '    AND X.IDPEDC = P.IDPEDC ' +
+        '    AND X.NUMLINPED = P.NUMLINPED ' +
+        ' ) AS YA_EN_ALBARAN ' +
+
+        'FROM LINEPEDI P ' +
+        'WHERE P.IDPEDC = :PED ' +
+        ' AND P.NUMLINPED = :LIN ' +
+        ' AND P.CODART = :ART';
+
+      QLineas.Parameters.ParamByName('ALB').Value := IdAlbC;
+
+      QLineas.Parameters.ParamByName('PED').Value :=
+        Grupos[I].IdPedC;
+
+      QLineas.Parameters.ParamByName('LIN').Value :=
+        Grupos[I].NumLinAlternativo;
+
+      QLineas.Parameters.ParamByName('ART').Value :=
+        Grupos[I].CodAlternativo;
+
+      QLineas.Open;
+
+      if QLineas.Eof then
+      begin
+        raise Exception.Create(
+          'No se encuentra la linea del articulo alternativo ' +
+          Grupos[I].CodAlternativo +
+          ' en el pedido.'
+        );
+      end;
+
+      YaEnAlbaran :=
+        QLineas.FieldByName('YA_EN_ALBARAN').AsFloat;
+
+      Pendientes :=
+        QLineas.FieldByName('PENDIENTES').AsFloat;
+
+      QLineas.Close;
+
+      // ==================================================
+      // 5. CALCULAR LAS CAJAS QUE FALTAN
+      // ==================================================
+
+      Cantidad := Necesarias - YaEnAlbaran;
+
+      // Si ya se han servido todas las cajas necesarias,
+      // no hacemos nada.
+
+      if Cantidad <= 0.000001 then
+        Continue;
+
+      // Las cantidades pendientes del alternativo
+      // se encuentran en negativo.
+      //
+      // Ejemplo:
+      // Pendientes = -450
+      // Cantidad   =  450
+
+      if Pendientes > -Cantidad + 0.000001 then
+      begin
+        raise Exception.Create(
+          'No hay suficientes cajas pendientes del articulo ' +
+          Grupos[I].CodAlternativo +
+          ' en la linea ' +
+          Num(Grupos[I].NumLinAlternativo) +
+          '. Necesarias: ' + Num(Cantidad) +
+          '. Pendientes: ' + Num(Abs(Pendientes))
+        );
+      end;
+
+      // ==================================================
+      // 6. SERVIR LA LINEA ALTERNATIVA CORRECTA
+      // ==================================================
+
+      NaxAlbaran := nil;
+      Preparado := False;
+      MarcaGuardado := False;
+
+      GuardadoAnterior :=
+        aGuardadoPorDll[
+          TTablaA3.tipoDocumentoPorParam('AC')
+        ];
+
+      // TRY EXTERIOR: garantiza limpieza y restauracion.
+      try
+
+        // TRY INTERIOR: controla errores de NAX.
+        try
+
+          NaxAlbaran := CoAlbaran.Create;
+
+          NaxAlbaran.Iniciar;
+          Preparado := True;
+
+          NaxAlbaran.Modifica(IdAlbC, True);
+
+          NaxAlbaran.IniciarServir(
+            'P',
+            Grupos[I].IdPedC,
+            False
+          );
+
+          // Servir exclusivamente la linea C13
+          // asociada al articulo original.
+
+          NaxAlbaran.ServirLinea(
+            0,
+            Grupos[I].NumLinAlternativo,
+            0,
+            0,
+            -Cantidad,
+            0,
+            '',
+            '',
+            '',
+            ''
+          );
+
+          NaxAlbaran.FinServir;
+
+          // Evitar recursividad del evento de guardado.
+
+          aGuardadoPorDll[
+            TTablaA3.tipoDocumentoPorParam('AC')
+          ] := 'T';
+
+          MarcaGuardado := True;
+
+          // Guardar albaran.
+          NaxAlbaran.Anade;
+
+        except
+          on E: Exception do
+          begin
+
+            if Preparado then
+            begin
+              try
+                NaxAlbaran.Cancela;
+              except
+                // No sustituir el error original.
+              end;
+            end;
+
+            raise Exception.Create(
+              'Error al servir cajas del articulo ' +
+              Grupos[I].CodOriginal +
+              ', linea alternativa ' +
+              Num(Grupos[I].NumLinAlternativo) +
+              ': ' + E.Message
+            );
+
+          end;
+        end;
+
+      finally
+
+        // Restaurar siempre el indicador de guardado.
+
+        if MarcaGuardado then
+        begin
+          aGuardadoPorDll[
+            TTablaA3.tipoDocumentoPorParam('AC')
+          ] := GuardadoAnterior;
+        end;
+
+        // Finalizar el objeto NAX.
+
+        if Preparado then
+        begin
+          try
+            NaxAlbaran.Acabar;
+          except
+            // Evitar errores durante la limpieza.
+          end;
+        end;
+
+        NaxAlbaran := nil;
+
+      end;
+
+    end;
+
+  finally
+
+    QLineas.Free;
+    QGrupos.Free;
+
+  end;
+
 end;
 
 
